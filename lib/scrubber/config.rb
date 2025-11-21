@@ -9,7 +9,7 @@ module Scrubber
     attr_accessor :additional_attributes, :add_attributes, :add_data_uri_tags,
       :additional_tags, :additional_uri_safe_attributes, :add_uri_safe_attributes,
       :allow_aria_attributes, :allow_data_attributes, :allow_data_uri, :allow_unknown_protocols,
-      :allow_self_close_in_attributes, :allowed_attributes, :allowed_tags,
+      :allow_self_close_in_attributes, :allowed_attributes, :allowed_attributes_per_tag, :allowed_tags,
       :allowed_namespaces, :allowed_uri_regexp, :custom_element_handling,
       :forbidden_attributes, :forbid_attributes, :forbid_contents, :add_forbid_contents, :forbidden_tags,
       :force_body, :html_integration_points, :in_place, :keep_content,
@@ -83,6 +83,7 @@ module Scrubber
           'allowed_tags' => :allowed_tags=,
           'allowed_attr' => :allowed_attributes=, # backward compatibility
           'allowed_attributes' => :allowed_attributes=,
+          'allowed_attributes_per_tag' => :allowed_attributes_per_tag=,
           'forbidden_tags' => :forbidden_tags=,
           'forbid_tags' => :forbidden_tags=, # backward compatibility
           'forbidden_attr' => :forbidden_attributes=, # backward compatibility

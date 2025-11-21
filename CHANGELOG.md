@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Canonical DOM clobbering denylist test to track parity with DOMPurify.
 - Performance section in README with benchmark stats from local Apple M1 Max runs.
 - `html_email` profile to support safe rendering of HTML emails (allows `head`, `meta`, `style` tags and email-specific attributes while stripping scripts and forms).
+- **Per-tag attribute control** via `allowed_attributes_per_tag` configuration option, enabling fine-grained attribute allow lists per HTML tag (e.g., allow `href` only on `<a>` tags). Includes comprehensive documentation and test coverage.
+- Hook-based per-tag attribute control documentation showing how to use `upon_sanitize_attribute` hook for custom per-tag validation logic.
 
 ### Changed
 - Default forbidden tags now include `base`, `link`, `meta`, and `style`; removed these from the default allowlist to mirror DOMPurify defaults.

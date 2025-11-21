@@ -212,6 +212,67 @@ Scrubber.configure do |config|
 end
 ```
 
+#### `allowed_attributes_per_tag`
+**Type:** `Hash<String, Array<String>>` | **Default:** `nil`
+
+Specify which attributes are allowed on specific HTML tags. This provides fine-grained control beyond global attribute allow/deny lists. When configured, per-tag rules take precedence over global `allowed_attributes` for the specified tags.
+
+**Format:** `{ 'tag_name' => ['attr1', 'attr2', ...] }`
+
+```ruby
+Scrubber.configure do |config|
+  config.allowed_attributes_per_tag = {
+    'a' => ['href', 'title', 'target'],
+    'img' => ['src', 'alt', 'width', 'height'],
+    'td' => ['colspan', 'rowspan'],
+    'th' => ['colspan', 'rowspan', 'scope']
+  }
+end
+
+# Now only specified attributes are allowed on each tag
+html = '<a href="/page" onclick="alert()">Link</a>'
+Scrubber.sanitize(html)
+# => '<a href="/page">Link</a>' (onclick removed, href kept)
+
+html = '<img src="pic.jpg" href="/bad">'
+Scrubber.sanitize(html)
+# => '<img src="pic.jpg">' (href removed from img tag)
+```
+
+**Security use case:**
+
+```ruby
+# Restrict link targets and prevent attribute confusion attacks
+Scrubber.configure do |config|
+  config.allowed_attributes_per_tag = {
+    'a' => ['href', 'title'],           # No target attribute
+    'img' => ['src', 'alt'],            # No href on images
+    'form' => ['action', 'method'],     # Only form-specific attrs
+    'input' => ['type', 'name', 'value'] # No onclick, etc.
+  }
+end
+```
+
+**Interaction with global settings:**
+- `forbidden_attributes` always takes precedence (attributes are removed even if in per-tag list)
+- If a tag has per-tag rules, those rules are used instead of `allowed_attributes` for that tag
+- Tags without per-tag rules fall back to global `allowed_attributes` behavior
+- `additional_attributes` is ignored for tags with per-tag rules
+
+```ruby
+Scrubber.configure do |config|
+  config.allowed_attributes_per_tag = {
+    'a' => ['href', 'onclick']  # onclick specified here
+  }
+  config.forbidden_attributes = ['onclick']  # But forbidden globally
+end
+
+html = '<a href="/page" onclick="alert()">Link</a>'
+Scrubber.sanitize(html)
+# => '<a href="/page">Link</a>' (onclick removed by forbidden_attributes)
+```
+
+
 ---
 ### Allowed vs Additional
 When deciding between `allowed_` and `additional_` use the following guiding principles:
@@ -428,6 +489,59 @@ Scrubber.remove_hook(:before_sanitize_elements, my_hook_function)
 Scrubber.remove_all_hooks
 ```
 
+#### Per-Tag Attribute Control with Hooks
+
+Hooks provide powerful per-tag attribute control, allowing you to specify which attributes are allowed on specific HTML tags. This is useful for enforcing strict security policies or implementing custom sanitization rules.
+
+**Example: Allow specific attributes only on certain tags**
+
+```ruby
+Scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
+  tag_name = data[:tag_name]
+  attr_name = data[:attr_name]
+  
+  # Allow href only on <a> tags
+  if attr_name == 'href' && tag_name == 'a'
+    data[:keep_attr] = true
+  end
+  
+  # Allow src only on <img>, <video>, and <audio> tags
+  if attr_name == 'src' && ['img', 'video', 'audio'].include?(tag_name)
+    data[:keep_attr] = true
+  end
+  
+  # Allow colspan and rowspan only on table cells
+  if ['colspan', 'rowspan'].include?(attr_name) && ['td', 'th'].include?(tag_name)
+    data[:keep_attr] = true
+  end
+end
+```
+
+**Example: Custom data attributes per component**
+
+```ruby
+# Allow specific data attributes only on certain custom elements
+Scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
+  tag_name = data[:tag_name]
+  attr_name = data[:attr_name]
+  
+  case tag_name
+  when 'user-profile'
+    # Allow data-user-id only on <user-profile> elements
+    data[:keep_attr] = true if attr_name == 'data-user-id'
+  when 'product-card'
+    # Allow data-product-id and data-price only on <product-card> elements
+    data[:keep_attr] = true if ['data-product-id', 'data-price'].include?(attr_name)
+  end
+end
+```
+
+**Available hook data:**
+- `data[:tag_name]` - The element's tag name (lowercase)
+- `data[:attr_name]` - The attribute name (lowercase)
+- `data[:value]` - The attribute value
+- `data[:keep_attr]` - Set to `true` to force keeping the attribute
+
 ## Security
 
 Scrubber provides comprehensive XSS protection based on DOMPurify's battle-tested security model.
@@ -531,6 +645,7 @@ All options accept `snake_case` keys. Defaults are chosen for safety and DOMPuri
 | `additional_tags` | `[]` | Extends default safe set. Increases surface; ensure tags are non-scriptable. |
 | `forbidden_tags` | `['base','link','meta','style','annotation-xml']` | Always removed even if allowed elsewhere. Removing entries can reintroduce navigation/XSS vectors. |
 | `allowed_attributes` | `nil` (default safe set) | Exact allowlist of attributes. Restrictive; disables defaults. |
+| `allowed_attributes_per_tag` | `nil` | Hash mapping tag names to allowed attributes for that tag. Provides fine-grained per-tag control. Takes precedence over `allowed_attributes` for specified tags. |
 | `additional_attributes` | `[]` | Extends default safe attributes. Expands surface; review risk. |
 | `forbidden_attributes` | `nil` | Attributes always removed. Use to hard-block specific attrs. |
 | `allow_data_attributes` | `true` | Controls `data-*`. Turning off removes all `data-*`. |

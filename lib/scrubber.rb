@@ -241,7 +241,7 @@ module Scrubber
         lc_name = transform_case(name)
         value = attr.value
         execute_hooks(:upon_sanitize_attribute, attr, { tag_name: tag_name, attr_name: lc_name, value: value })
-        next if valid_attribute?(lc_name, value)
+        next if valid_attribute?(tag_name, lc_name, value)
 
         to_remove << name
         @removed << { attribute: attr, from: node }
@@ -283,7 +283,7 @@ module Scrubber
     # @param attr_name [String] the attribute name
     # @param value [String] the attribute value
     # @return [Boolean] true if the attribute is valid, false otherwise
-    def valid_attribute?(attr_name, value) # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+    def valid_attribute?(tag_name, attr_name, value) # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       # puts "Checking attribute: #{tag_name} #{attr_name}=#{value}"
       return false if @config.forbidden_attributes&.include?(attr_name)
 
@@ -293,6 +293,12 @@ module Scrubber
         value.match?(/#{d}/i)
       end && !(@config.allow_data_uri && value.match?(/^data:/i))
         return false
+      end
+
+      # Check per-tag allowed attributes if configured
+      if @config.allowed_attributes_per_tag.is_a?(Hash)
+        per_tag_attrs = @config.allowed_attributes_per_tag[tag_name]
+        return per_tag_attrs&.include?(attr_name) || false if per_tag_attrs
       end
 
       # Check allowed attributes list if configured
@@ -636,8 +642,8 @@ module Scrubber
     # @param attr [String] the attribute name
     # @param value [String] the attribute value
     # @return [Boolean] true if the attribute is valid, false otherwise
-    def valid_attribute?(attr, value)
-      @instance.send(:valid_attribute?, attr, value)
+    def valid_attribute?(tag_name, attr, value)
+      @instance.send(:valid_attribute?, tag_name, attr, value)
     end
 
     # Adds a hook function for a specific entry point
