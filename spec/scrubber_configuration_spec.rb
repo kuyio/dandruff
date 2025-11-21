@@ -255,6 +255,23 @@ RSpec.describe Scrubber do
       end
     end
 
+    describe 'custom elements and trusted types' do
+      it 'preserves safe custom elements while sanitizing attributes' do
+        dirty = '<custom-element onclick="alert(1)" data-safe="ok">Hi</custom-element>'
+        clean = described_class.sanitize(dirty)
+        expect(clean).to include('<custom-element')
+        expect(clean).to include('data-safe="ok"')
+        expect(clean).not_to include('onclick')
+      end
+
+      it 'accepts trusted types flag without altering return type' do
+        dirty = '<p>test</p>'
+        clean = described_class.sanitize(dirty, return_trusted_type: true)
+        expect(clean).to be_a(String)
+        expect(clean).to include('<p>test</p>')
+      end
+    end
+
     describe 'return_dom configuration' do
       it 'returns DOM when enabled' do
         dirty = '<div>Content</div>'

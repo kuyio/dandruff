@@ -29,6 +29,20 @@ RSpec.describe Scrubber do
       expect(tag_names).to include('p')
     end
 
+    it 'executes upon_sanitize_attribute hook' do
+      hook_called = false
+      attrs = []
+
+      described_class.add_hook(:upon_sanitize_attribute) do |attr, data, _config|
+        hook_called = true
+        attrs << [data[:tag_name], data[:attr_name], attr.value]
+      end
+
+      described_class.sanitize('<a href="https://example.com">test</a>')
+      expect(hook_called).to be true
+      expect(attrs).to include(['a', 'href', 'https://example.com'])
+    end
+
     it 'can remove hooks' do
       hook_called = false
       hook_proc = proc { hook_called = true }

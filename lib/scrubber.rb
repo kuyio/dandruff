@@ -116,12 +116,16 @@ module Scrubber
       dirty = dirty.to_s unless dirty.is_a?(String)
       doc = parse_html(dirty)
       sanitize_document(doc)
+      output = serialize_html(doc)
+
+      output = resanitize_until_stable(output) if @config.sanitize_until_stable
+
       if @config.return_dom
-        doc
+        parse_html(output)
       elsif @config.return_dom_fragment
-        Nokogiri::HTML5::DocumentFragment.parse(doc.to_html)
+        Nokogiri::HTML5::DocumentFragment.parse(output)
       else
-        serialize_html(doc)
+        output
       end
     end
 
@@ -185,20 +189,11 @@ module Scrubber
           node.remove
           next
         elsif node.element? && node.name == 'style'
-          if @config.forbidden_tags&.include?('style')
+          unless @config.allow_style_tags
             node.remove
             next
           end
-          if node.content && (
-            node.content.match?(/javascript:/i) ||
-            node.content.match?(/expression\s*\(/i) ||
-            node.content.match?(/@import\s+url\s*\(\s*["']?javascript:/i) ||
-            node.content.match?(/url\s*\(\s*["']?javascript:/i) ||
-            node.content.match?(/behavior\s*:/i) ||
-            node.content.match?(/binding\s*:/i)
-          )
-            node.remove
-          end
+          node.remove if unsafe_style_block?(node.content)
         elsif node.element?
           sanitize_element(node)
         elsif node.text? && @config.safe_for_templates
@@ -245,6 +240,7 @@ module Scrubber
       node.attributes.each do |name, attr|
         lc_name = transform_case(name)
         value = attr.value
+        execute_hooks(:upon_sanitize_attribute, attr, { tag_name: tag_name, attr_name: lc_name, value: value })
         next if valid_attribute?(tag_name, lc_name, value)
 
         to_remove << name
@@ -296,12 +292,10 @@ module Scrubber
         return false
       end
 
-      if attr_name == 'style' && value && (value.match?(/javascript:/i) || value.match?(/expression\s*\(/i))
-        return false
-      end
+      return false if attr_name == 'style' && value && unsafe_inline_style?(value)
 
       if @config.sanitize_dom && value && !value.to_s.strip.empty? && %w[name id].include?(attr_name) &&
-          %w[alert document window location frames].include?(value.downcase)
+          (Attributes::DOM_CLOBBERING.include?(value.downcase))
         return false
       end
       return true if @config.additional_attributes&.include?(attr_name)
@@ -315,17 +309,21 @@ module Scrubber
           value
         end
         return false if @config.allowed_uri_regexp && !value.match?(@config.allowed_uri_regexp)
-        return true if @config.allow_data_uri && value.match?(/^data:/i)
+        return true if @config.allow_data_uri && decoded.match?(/^data:/i)
         return true if decoded.match?(Expressions::IS_ALLOWED_URI)
       elsif uri_like?(attr_name)
         return true
       end
       if ['src', 'xlink:href', 'href'].include?(attr_name) &&
-          tag_name != 'script' && value&.start_with?('data:') &&
+          tag_name != 'script' && value&.start_with?('data:') && @config.allow_data_uri &&
           data_uri_tags.include?(tag_name)
         return true
       end
-      return true if @config.allow_unknown_protocols && value && !value.match?(Expressions::IS_SCRIPT_OR_DATA)
+      if @config.allow_unknown_protocols && value && !value.match?(Expressions::IS_SCRIPT_OR_DATA)
+        return false if value.match?(%r{^data:}i) && !@config.allow_data_uri
+
+        return true
+      end
 
       false
     end
@@ -336,6 +334,46 @@ module Scrubber
     # @return [Boolean] true if the attribute is URI-like, false otherwise
     def uri_like?(attr_name)
       default_uri_safe_attributes.include?(attr_name) || @config.additional_uri_safe_attributes&.include?(attr_name)
+    end
+
+    def unsafe_inline_style?(value)
+      normalized = value.downcase
+      # Decode CSS hex escapes to surface hidden protocol names
+      normalized = normalized.gsub(/\\([0-9a-f]{1,6})\s?/i) do
+        [$1.to_i(16)].pack('U')
+      rescue StandardError
+        ''
+      end
+      normalized = normalized.gsub(/\\/, '')
+      normalized = normalized.gsub(/\s+/, '')
+      normalized.include?('javascript:') ||
+        normalized.include?('expression(') ||
+        normalized.include?('@import') ||
+        normalized.include?('data:text/html') ||
+        normalized.match?(%r{url\([^)]*data:}i)
+    end
+
+    def unsafe_style_block?(content)
+      return false if content.nil? || content.strip.empty?
+
+      unsafe_inline_style?(content)
+    end
+
+    def resanitize_until_stable(html)
+      current = html
+      max_passes = [@config.mutation_max_passes.to_i, 1].max
+      passes = 1
+
+      while passes < max_passes
+        doc = parse_html(current)
+        sanitize_document(doc)
+        next_output = serialize_html(doc)
+        passes += 1
+        break if next_output == current
+
+        current = next_output
+      end
+      current
     end
 
     # Serializes the document back to HTML string
@@ -383,7 +421,7 @@ module Scrubber
     # @return [Set] set of attributes that can contain URIs
     def default_uri_safe_attributes
       @default_uri_safe_attributes ||= Set.new(%w[href src xlink:href action formaction cite data poster alt class for
-        id label name pattern placeholder role summary title value style xmlns])
+        id label name pattern placeholder role summary title value style xmlns filter])
     end
 
     # Checks if a tag's content should be forbidden

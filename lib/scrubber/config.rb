@@ -15,8 +15,8 @@ module Scrubber
       :force_body, :html_integration_points, :in_place, :keep_content,
       :mathml_text_integration_points, :namespace, :parser_media_type,
       :return_dom_fragment, :return_dom, :return_trusted_type,
-      :safe_for_templates, :safe_for_xml, :sanitize_dom,
-      :sanitize_named_props, :trusted_types_policy, :use_profiles,
+      :safe_for_templates, :safe_for_xml, :sanitize_dom, :sanitize_until_stable, :mutation_max_passes,
+      :sanitize_named_props, :trusted_types_policy, :use_profiles, :allow_style_tags,
       :whole_document
 
     # Initializes a new configuration instance
@@ -37,11 +37,15 @@ module Scrubber
       @return_trusted_type = false
       @sanitize_dom = true
       @sanitize_named_props = false
+      @sanitize_until_stable = false
+      @mutation_max_passes = 3
       @keep_content = true
       @in_place = false
       @use_profiles = {}
       @namespace = 'http://www.w3.org/1999/xhtml'
       @parser_media_type = 'text/html'
+      @forbidden_tags = %w[base link meta style annotation-xml]
+      @allow_style_tags = false
 
       apply_config(cfg)
       process_profiles unless @use_profiles.empty?
@@ -78,7 +82,8 @@ module Scrubber
           'allow_data_attr' => :allow_data_attributes=,  # backward compatibility
           'allow_data_attributes' => :allow_data_attributes=,
           'allow_self_close_in_attr' => :allow_self_close_in_attributes=, # backward compatibility
-          'allow_self_close_in_attributes' => :allow_self_close_in_attributes=
+          'allow_self_close_in_attributes' => :allow_self_close_in_attributes=,
+          'allow_style_tags' => :allow_style_tags=
         }
         setter = mapping[normalized] || :"#{normalized}="
         send(setter, value) if respond_to?(setter)

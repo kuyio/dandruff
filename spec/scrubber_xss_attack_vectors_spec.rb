@@ -138,6 +138,47 @@ RSpec.describe Scrubber do
         expect(clean).not_to include('<link')
         expect(clean).not_to include('javascript:')
       end
+
+      it 'removes base tag to prevent base href override' do
+        dirty = '<base href="https://evil.example.com"><a href="/path">Link</a>'
+        clean = described_class.sanitize(dirty)
+        expect(clean).not_to include('<base')
+      end
+
+      it 'removes unsafe link tags regardless of protocol' do
+        dirty = '<link rel="stylesheet" href="https://evil.example.com/style.css"><p>Text</p>'
+        clean = described_class.sanitize(dirty)
+        expect(clean).not_to include('<link')
+        expect(clean).to include('<p>Text</p>')
+      end
+
+      it 'removes non-refresh meta tags by default' do
+        dirty = '<meta name="description" content="test"><p>Body</p>'
+        clean = described_class.sanitize(dirty)
+        expect(clean).not_to include('<meta')
+        expect(clean).to include('<p>Body</p>')
+      end
+    end
+
+    describe 'data and file URI handling' do
+      it 'blocks data URI links by default' do
+        dirty = '<a href="data:text/html,<script>alert(1)</script>">link</a>'
+        clean = described_class.sanitize(dirty)
+        expect(clean).not_to include('data:text/html')
+      end
+
+      it 'respects allow_data_uri when enabled' do
+        dirty = '<img src="data:image/png;base64,abcd"/>'
+        clean = described_class.sanitize(dirty, allow_data_uri: true)
+        expect(clean).to include('data:image/png;base64,abcd')
+        described_class.clear_config
+      end
+
+      it 'blocks file protocol' do
+        dirty = '<a href="file:///etc/passwd">file</a>'
+        clean = described_class.sanitize(dirty)
+        expect(clean).not_to include('file:///etc/passwd')
+      end
     end
 
     describe 'iframe and frame attacks' do
@@ -184,6 +225,46 @@ RSpec.describe Scrubber do
         expect(clean).not_to include('<script')
         expect(clean).not_to include('alert')
       end
+
+      it 'blocks filter/animate/xlink/javascript payloads' do
+        dirty = '<svg><filter id="f" onload="alert(1)"></filter><rect filter="url(javascript:alert(1))"/><animate xlink:href="javascript:alert(1)" attributeName="href"/></svg>'
+        clean = described_class.sanitize(dirty)
+        expect(clean).not_to include('javascript:')
+        expect(clean).not_to include('onload')
+      end
+
+      it 'blocks data URI href/src in SVG' do
+        dirty = '<svg><use href="data:text/html,<script>alert(1)</script>"></use><image xlink:href="data:text/html,<svg onload=alert(1)>"></image></svg>'
+        clean = described_class.sanitize(dirty)
+        expect(clean).not_to include('data:text/html')
+      end
+
+      it 'blocks filter attribute with data URI' do
+        dirty = '<svg><rect filter="url(data:text/html,<script>alert(1)</script>)"></rect></svg>'
+        clean = described_class.sanitize(dirty)
+        expect(clean).not_to include('data:text/html')
+      end
+
+      it 'removes animateMotion elements entirely' do
+        dirty = '<svg><animateMotion xlink:href="javascript:alert(1)" path="M 0 0 L 10 10"/></svg>'
+        clean = described_class.sanitize(dirty)
+        expect(clean).not_to include('animateMotion')
+        expect(clean).not_to include('javascript:')
+      end
+
+      it 'blocks feImage data URIs' do
+        dirty = '<svg><filter><feImage xlink:href="data:text/html,<script>alert(1)</script>"/></filter></svg>'
+        clean = described_class.sanitize(dirty)
+        expect(clean).not_to include('data:text/html')
+        expect(clean).not_to include('<feImage')
+      end
+
+      it 'removes baseProfile traps' do
+        dirty = '<svg baseProfile="full"><script>alert(1)</script></svg>'
+        clean = described_class.sanitize(dirty)
+        expect(clean).not_to include('baseProfile')
+        expect(clean).not_to include('<script')
+      end
     end
 
     describe 'mathml attacks' do
@@ -199,6 +280,27 @@ RSpec.describe Scrubber do
         clean = described_class.sanitize(dirty)
         expect(clean).not_to include('javascript:')
         expect(clean).not_to include('alert')
+      end
+
+      it 'blocks data or script URIs in MathML href attributes' do
+        dirty = '<math><mtext href="data:text/html,<script>alert(1)</script>">x</mtext><mtext href="javascript:alert(2)">y</mtext></math>'
+        clean = described_class.sanitize(dirty)
+        expect(clean).not_to include('data:text/html')
+        expect(clean).not_to include('javascript:')
+      end
+
+      it 'removes maction elements entirely' do
+        dirty = '<math><maction actiontype="toggle" xlink:href="javascript:alert(1)"><mi>x</mi></maction></math>'
+        clean = described_class.sanitize(dirty)
+        expect(clean).not_to include('maction')
+        expect(clean).not_to include('javascript:')
+      end
+
+      it 'removes annotation-xml with embedded HTML/script' do
+        dirty = '<math><annotation-xml><script>alert(1)</script><div>hi</div></annotation-xml><mi>x</mi></math>'
+        clean = described_class.sanitize(dirty)
+        expect(clean).not_to include('annotation-xml')
+        expect(clean).not_to include('script')
       end
     end
 
@@ -229,6 +331,29 @@ RSpec.describe Scrubber do
         clean = described_class.sanitize(dirty)
         expect(clean).not_to include('<style')
         expect(clean).not_to include('javascript:')
+      end
+
+      it 'drops entire style element when opt-in and unsafe' do
+        dirty = '<style>body { background:url(javascript:alert(1)) }</style><p>Ok</p>'
+        clean = described_class.sanitize(dirty, allow_style_tags: true)
+        expect(clean).not_to include('<style')
+        expect(clean).to include('<p>Ok</p>')
+        described_class.clear_config
+      end
+
+      it 'keeps safe style element when opt-in' do
+        dirty = '<style>body { color: black; }</style><p>Ok</p>'
+        clean = described_class.sanitize(dirty, allow_style_tags: true)
+        expect(clean).to include('<style>body { color: black; }</style>')
+        expect(clean).to include('<p>Ok</p>')
+        described_class.clear_config
+      end
+
+      it 'removes obfuscated javascript in inline styles' do
+        dirty = '<div style="background:url(\\6aavascript:alert(1))">Test</div>'
+        clean = described_class.sanitize(dirty)
+        expect(clean).not_to include('style=')
+        expect(clean).not_to include('javascript')
       end
     end
 
@@ -273,6 +398,29 @@ RSpec.describe Scrubber do
         dirty = '<div id="alert">Content</div>'
         clean = described_class.sanitize(dirty, sanitize_dom: true)
         expect(clean).not_to include('id="alert"')
+      end
+
+      it 'removes broader DOM clobbering identifiers' do
+        dirty = '<div id="__proto__">Content</div>'
+        clean = described_class.sanitize(dirty, sanitize_dom: true)
+        expect(clean).not_to include('__proto__')
+      end
+
+      it 'removes additional clobbering identifiers like attributes/documentElement' do
+        dirty = '<div id="attributes">Content</div><div name="documentelement">X</div>'
+        clean = described_class.sanitize(dirty, sanitize_dom: true)
+        expect(clean).not_to include('id="attributes"')
+        expect(clean).not_to include('name="documentelement"')
+      end
+
+      it 'removes DOMPurify canonical clobbering identifiers' do
+        ids = %w[__proto__ constructor prototype contentwindow contentdocument nodevalue innerhtml outerhtml localname documenturi srcdoc url]
+        html = ids.map { |i| "<div id=\"#{i}\">x</div><div name=\"#{i}\">y</div>" }.join
+        clean = described_class.sanitize(html, sanitize_dom: true)
+        ids.each do |i|
+          expect(clean).not_to include("id=\"#{i}\"")
+          expect(clean).not_to include("name=\"#{i}\"")
+        end
       end
     end
 

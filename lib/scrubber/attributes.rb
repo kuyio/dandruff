@@ -65,5 +65,14 @@ module Scrubber
       onscroll onresize oncopy oncut onpaste ondrag ondrop
       javascript: vbscript: data:text/html
     ].freeze
+
+    DOM_CLOBBERING = %w[
+      alert constructor contentdocument contentwindow document elements form forms frames
+      location ownerdocument parentnode prototype window __parent__ __proto__
+      attributes documentelement implementation children
+      contentwindow contentdocument parentnode ownerdocument location attributes prototype constructor
+      nodevalue innerhtml outerhtml localname documenturi srcdoc url
+      createelement renameNode appendChild insertBefore replaceChild removeChild normalize cloneNode
+    ].freeze
   end
 end

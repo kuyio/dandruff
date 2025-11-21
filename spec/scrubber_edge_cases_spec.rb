@@ -141,5 +141,24 @@ RSpec.describe Scrubber do
         expect(clean).to include('Content')
       end
     end
+
+    describe 'mutation XSS resilience' do
+      it 'performs at least two passes when sanitize_until_stable is enabled' do
+        count = 0
+        described_class.add_hook(:before_sanitize_elements) { |_node, _data, _config| count += 1 }
+        dirty = '<div><script>alert(1)</script><style>body{color:black}</style></div>'
+        described_class.sanitize(dirty, sanitize_until_stable: true, mutation_max_passes: 3)
+        expect(count).to be >= 2
+        described_class.remove_all_hooks
+      end
+
+      it 'stabilizes mutated SVG payloads across passes' do
+        dirty = '<svg><foreignObject><body><svg><script>alert(1)</script></svg></body></foreignObject></svg>'
+        clean = described_class.sanitize(dirty, sanitize_until_stable: true, mutation_max_passes: 3)
+        second_pass = described_class.sanitize(clean, sanitize_until_stable: true, mutation_max_passes: 3)
+        expect(clean).to eq(second_pass)
+        expect(clean).not_to include('<script')
+      end
+    end
   end
 end
