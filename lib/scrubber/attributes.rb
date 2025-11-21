@@ -61,7 +61,7 @@ module Scrubber
     # Attributes allowed in HTML emails (includes legacy attributes)
     HTML_EMAIL = (HTML + %w[
       target bgcolor text link vlink alink background border cellpadding cellspacing
-      width height align valign face size color content
+      width height align valign face size color content leftmargin topmargin marginwidth marginheight
     ]).freeze
 
     DANGEROUS = %w[

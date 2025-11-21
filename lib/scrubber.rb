@@ -270,6 +270,13 @@ module Scrubber
       to_remove.each { |n| node.delete(n) }
       # Remove meta/link tags entirely if dangerous attributes were removed
       node.remove if dangerous_removed && dangerous_tags.include?(tag_name)
+
+      # Ensure alt is present on images when allowed by profile (helps email fidelity/accessibility)
+      if tag_name == 'img' && @config.allowed_attributes_per_tag.is_a?(Hash)
+        allowed = @config.allowed_attributes_per_tag['img']
+        node['alt'] = '' if allowed&.include?('alt') && !node.key?('alt')
+      end
+
       execute_hooks(:after_sanitize_attributes, node)
     end
 

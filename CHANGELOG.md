@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Per-tag attribute control** via `allowed_attributes_per_tag` configuration option, enabling fine-grained attribute allow lists per HTML tag (e.g., allow `href` only on `<a>` tags). Includes comprehensive documentation and test coverage.
 - **Optimized `html_email` profile** to use per-tag attribute restrictions instead of global attribute allowlisting, improving security by preventing attribute confusion attacks while maintaining full email compatibility.
 - Hook-based per-tag attribute control documentation showing how to use `upon_sanitize_attribute` hook for custom per-tag validation logic.
+- Additional HTML email profile regression specs to preserve `<html lang>`, head/meta/style content, legacy body margins/padding, table layout attributes, and enforced `alt` on `<img>` while stripping dangerous handlers/URIs.
 
 ### Changed
 - Default forbidden tags now include `base`, `link`, `meta`, and `style`; removed these from the default allowlist to mirror DOMPurify defaults.
@@ -34,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CSS tests expanded for nested/escaped `@import`; URI parsing tightened to reject leading whitespace/control characters.
 - Inline styles now parsed into allowed declarations with protocol checks; unsafe values drop the entire attribute.
 - Scrubber now uses instance-based configuration (`Scrubber.new(config)`) instead of module-level global state; the module-level `Scrubber.sanitize` is a convenience wrapper that builds a fresh instance per call.
+- `use_profiles=` now resets and reapplies profile-derived config, fixing block-style configuration for `html_email` (preserves document elements/attributes even with `return_dom`).
+- HTML email profile now forces full-document parsing and preserves legacy margin attributes and backgrounds on row/table elements to improve email fidelity.
 
 ## [0.4.0] - 2025-11-20
 

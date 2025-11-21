@@ -174,5 +174,128 @@ RSpec.describe Scrubber do
       clean = scrubber.sanitize(dirty)
       expect(clean).not_to include('javascript:')
     end
+
+    it 'preserves document-level language and legacy body margins' do
+      dirty = <<~HTML
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style type="text/css">body { background:#f4f4f4; }</style>
+        </head>
+        <body bgcolor="#f4f4f4" link="398bce" leftmargin="0" topmargin="0" marginwidth="0" marginheight="0">
+          <table border="0" width="600" cellpadding="0" cellspacing="0" align="center">
+            <tr bgcolor="#ffffff"><td>Hi</td></tr>
+          </table>
+        </body>
+        </html>
+      HTML
+
+      clean = scrubber.sanitize(dirty)
+      expect(clean).to include('<html lang="en">')
+      expect(clean).to include('meta name="viewport" content="width=device-width, initial-scale=1.0"')
+      expect(clean).to include('<style type="text/css">body { background:#f4f4f4; }</style>')
+      expect(clean).to include('bgcolor="#f4f4f4"')
+      expect(clean).to include('leftmargin="0"')
+      expect(clean).to include('topmargin="0"')
+      expect(clean).to include('marginwidth="0"')
+      expect(clean).to include('marginheight="0"')
+      expect(clean).to include('cellpadding="0"')
+      expect(clean).to include('cellspacing="0"')
+    end
+
+    it 'keeps head/meta/style elements and attributes expected in email' do
+      dirty = <<~HTML
+        <html lang="fr">
+        <head>
+          <meta charset="utf-8">
+          <meta name="format-detection" content="telephone=no">
+          <style type="text/css">.c { color:#333; }</style>
+          <title>t</title>
+        </head>
+        <body></body>
+        </html>
+      HTML
+
+      clean = scrubber.sanitize(dirty)
+      expect(clean).to include('<html lang="fr">')
+      expect(clean).to include('<meta charset="utf-8">')
+      expect(clean).to include('<meta name="format-detection" content="telephone=no">')
+      expect(clean).to include('<style type="text/css">.c { color:#333; }</style>')
+      expect(clean).to include('<title>t</title>')
+    end
+
+    it 'retains table layout attributes common to email clients' do
+      dirty = <<~HTML
+        <html>
+        <body>
+          <table width="600" border="0" cellpadding="0" cellspacing="0" align="center" bgcolor="#fff" background="bg.png" role="presentation" summary="layout">
+            <tr bgcolor="#eee" background="row.png"><td bgcolor="#ddd" background="cell.png" colspan="2" rowspan="1" valign="top" align="left" width="300" height="20" headers="h" scope="col">X</td></tr>
+          </table>
+        </body>
+        </html>
+      HTML
+
+      clean = scrubber.sanitize(dirty)
+      table_expected = '<table width="600" border="0" cellpadding="0" cellspacing="0" align="center" ' \
+                       'bgcolor="#fff" background="bg.png" role="presentation" summary="layout">'
+      td_expected = 'td bgcolor="#ddd" background="cell.png" colspan="2" rowspan="1" valign="top" ' \
+                    'align="left" width="300" height="20" headers="h" scope="col"'
+
+      expect(clean).to include(table_expected)
+      expect(clean).to include('<tr bgcolor="#eee" background="row.png">')
+      expect(clean).to include(td_expected)
+    end
+
+    it 'cleans dangerous attributes while preserving allowed ones in email context' do
+      dirty = <<~HTML
+        <html lang="en">
+        <body onclick="bad()" bgcolor="#fff">
+          <a href="javascript:alert(1)" target="_blank" rel="noreferrer" onclick="steal()">Click</a>
+          <img src="http://example.com/img.png" alt="" onerror="hack()" border="0" width="10" height="20">
+        </body>
+        </html>
+      HTML
+
+      clean = scrubber.sanitize(dirty)
+      expect(clean).to include('<html lang="en">')
+      expect(clean).to include('<body bgcolor="#fff">')
+      expect(clean).to include('target="_blank"')
+      expect(clean).to include('rel="noreferrer"')
+      expect(clean).to match(%r{<img[^>]*src="http://example.com/img.png"[^>]*alt=""})
+      expect(clean).not_to include('onclick="')
+      expect(clean).not_to include('javascript:alert')
+      expect(clean).not_to include('onerror="hack()"')
+    end
+
+    it 'applies html_email profile when configured via block with return_dom' do
+      scrubber = Scrubber.new do |config|
+        config.use_profiles = { html_email: true }
+        config.return_dom = true
+      end
+
+      dirty = <<~HTML
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style type="text/css">body { background:#f4f4f4; }</style>
+        </head>
+        <body bgcolor="#f4f4f4" leftmargin="0" topmargin="0" marginwidth="0" marginheight="0">
+          <a href="https://example.com" target="_blank">link</a>
+        </body>
+        </html>
+      HTML
+
+      doc = scrubber.sanitize(dirty)
+      html = doc.at('html')
+      body = doc.at('body')
+      expect(html['lang']).to eq('en')
+      expect(doc.at('meta')['name']).to eq('viewport')
+      expect(doc.at('style').text).to include('background:#f4f4f4')
+      expect(body['bgcolor']).to eq('#f4f4f4')
+      expect(body['leftmargin']).to eq('0')
+      expect(doc.at('a')['target']).to eq('_blank')
+    end
   end
 end

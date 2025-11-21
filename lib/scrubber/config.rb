@@ -16,7 +16,7 @@ module Scrubber
       :mathml_text_integration_points, :namespace, :parser_media_type,
       :return_dom_fragment, :return_dom,
       :safe_for_templates, :safe_for_xml, :sanitize_dom, :sanitize_until_stable, :mutation_max_passes,
-      :sanitize_named_props, :trusted_types_policy, :use_profiles, :allow_style_tags, :minimal_profile,
+      :sanitize_named_props, :trusted_types_policy, :allow_style_tags, :minimal_profile,
       :whole_document, :allow_document_elements
 
     # Initializes a new configuration instance
@@ -63,6 +63,13 @@ module Scrubber
       process_profiles unless @use_profiles.empty?
     end
 
+    # Reassign profiles after initialization and rebuild derived settings
+    def use_profiles=(profiles)
+      @use_profiles = profiles || {}
+      reset_profile_dependent_settings
+      process_profiles unless @use_profiles.empty?
+    end
+
     private
 
     # Applies configuration options from a hash
@@ -106,6 +113,17 @@ module Scrubber
       end
     end
 
+    def reset_profile_dependent_settings
+      @allowed_tags = nil
+      @allowed_attributes = nil
+      @allowed_attributes_per_tag = nil
+      @allow_style_tags = false
+      @allow_document_elements = false
+      @allow_unknown_protocols = false
+      @whole_document = false
+      @forbidden_tags = %w[base link meta style annotation-xml]
+    end
+
     # Processes profile configurations to set allowed tags and attributes
     #
     # @return [void]
@@ -125,6 +143,7 @@ module Scrubber
           @allow_style_tags = true
           @allow_document_elements = true
           @allow_unknown_protocols = false
+          @whole_document = true
           @forbidden_tags -= %w[meta style]
         end
       end
@@ -152,22 +171,23 @@ module Scrubber
     def setup_html_email_per_tag_attributes
       # Common attributes for most content elements
       common_attrs = %w[align class id style dir lang title]
+      legacy_margin_attrs = %w[leftmargin topmargin marginwidth marginheight]
 
       @allowed_attributes_per_tag = {
         # Document structure
-        'body' => %w[bgcolor text link vlink alink background style class id],
+        'body' => %w[bgcolor text link vlink alink background style class id] + legacy_margin_attrs,
         'html' => %w[lang dir xmlns],
         'head' => [],
         'meta' => %w[name content charset],
         'title' => [],
-        'style' => [],
+        'style' => %w[type],
 
         # Table elements (core of email layouts)
         'table' => %w[width height border cellpadding cellspacing align bgcolor background style class id role summary],
         'thead' => common_attrs,
         'tbody' => common_attrs,
         'tfoot' => common_attrs,
-        'tr' => %w[height bgcolor valign align style class id],
+        'tr' => %w[height bgcolor background valign align style class id],
         'td' => %w[width height colspan rowspan align valign bgcolor background style class id headers scope],
         'th' => %w[width height colspan rowspan align valign bgcolor background style class id headers scope],
 
