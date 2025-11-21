@@ -25,7 +25,7 @@ A robust Ruby HTML sanitizer providing comprehensive XSS protection with an idio
   - [Security Best Practices](#security-best-practices)
 - [API Reference](#api-reference)
 - [Performance](#performance)
-- [Migration Guide](#migration-guide)
+- [Compared to other sanitization libraries](#compared-to)
 - [Development](#development)
 - [Contributing](#contributing)
 - [License](#license)
@@ -507,17 +507,17 @@ Hooks provide powerful per-tag attribute control, allowing you to specify which 
 scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
   tag_name = data[:tag_name]
   attr_name = data[:attr_name]
-  
+
   # Allow href only on <a> tags
   if attr_name == 'href' && tag_name == 'a'
     data[:keep_attr] = true
   end
-  
+
   # Allow src only on <img>, <video>, and <audio> tags
   if attr_name == 'src' && ['img', 'video', 'audio'].include?(tag_name)
     data[:keep_attr] = true
   end
-  
+
   # Allow colspan and rowspan only on table cells
   if ['colspan', 'rowspan'].include?(attr_name) && ['td', 'th'].include?(tag_name)
     data[:keep_attr] = true
@@ -532,7 +532,7 @@ end
 scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
   tag_name = data[:tag_name]
   attr_name = data[:attr_name]
-  
+
   case tag_name
   when 'user-profile'
     # Allow data-user-id only on <user-profile> elements
@@ -752,6 +752,10 @@ Stress scenarios (from `spec/scrubber_performance_stress_spec.rb` fallback runne
 - Deep nesting (100 levels): <5s target met
 - Memory growth check: <50k object growth over 100 iterations
 
+## Compared To
+
+Scrubber draws inspiration from DOMPurify's security model, bringing its battle-tested XSS prevention techniques to Ruby.
+See [COMPARISON.md](COMPARISON.md) for detailed comparison with other Ruby HTML sanitization libraries like Rails' built-in sanitizer, Loofah, and sanitize.
 
 ## Development
 
