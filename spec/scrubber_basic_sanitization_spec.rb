@@ -48,8 +48,8 @@ RSpec.describe Scrubber do
   describe '.valid_attribute?' do
     it 'validates attributes correctly' do
       described_class.set_config(allowed_attributes: ['class'])
-      expect(described_class.valid_attribute?('div', 'class', 'test')).to be true
-      expect(described_class.valid_attribute?('div', 'onclick', 'alert()')).to be false
+      expect(described_class.valid_attribute?('class', 'test')).to be true
+      expect(described_class.valid_attribute?('onclick', 'alert()')).to be false
     end
   end
 

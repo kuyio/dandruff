@@ -227,14 +227,16 @@ RSpec.describe Scrubber do
       end
 
       it 'blocks filter/animate/xlink/javascript payloads' do
-        dirty = '<svg><filter id="f" onload="alert(1)"></filter><rect filter="url(javascript:alert(1))"/><animate xlink:href="javascript:alert(1)" attributeName="href"/></svg>'
+        dirty = '<svg><filter id="f" onload="alert(1)"></filter><rect filter="url(javascript:alert(1))"/>' \
+                '<animate xlink:href="javascript:alert(1)" attributeName="href"/></svg>'
         clean = described_class.sanitize(dirty)
         expect(clean).not_to include('javascript:')
         expect(clean).not_to include('onload')
       end
 
       it 'blocks data URI href/src in SVG' do
-        dirty = '<svg><use href="data:text/html,<script>alert(1)</script>"></use><image xlink:href="data:text/html,<svg onload=alert(1)>"></image></svg>'
+        dirty = '<svg><use href="data:text/html,<script>alert(1)</script>"></use>' \
+                '<image xlink:href="data:text/html,<svg onload=alert(1)>"></image></svg>'
         clean = described_class.sanitize(dirty)
         expect(clean).not_to include('data:text/html')
       end
@@ -283,7 +285,8 @@ RSpec.describe Scrubber do
       end
 
       it 'blocks data or script URIs in MathML href attributes' do
-        dirty = '<math><mtext href="data:text/html,<script>alert(1)</script>">x</mtext><mtext href="javascript:alert(2)">y</mtext></math>'
+        dirty = '<math><mtext href="data:text/html,<script>alert(1)</script>">x</mtext>' \
+                '<mtext href="javascript:alert(2)">y</mtext></math>'
         clean = described_class.sanitize(dirty)
         expect(clean).not_to include('data:text/html')
         expect(clean).not_to include('javascript:')
@@ -455,7 +458,8 @@ RSpec.describe Scrubber do
       end
 
       it 'removes DOMPurify canonical clobbering identifiers' do
-        ids = %w[__proto__ constructor prototype contentwindow contentdocument nodevalue innerhtml outerhtml localname documenturi srcdoc url]
+        ids = %w[__proto__ constructor prototype contentwindow contentdocument nodevalue innerhtml outerhtml
+          localname documenturi srcdoc url]
         html = ids.map { |i| "<div id=\"#{i}\">x</div><div name=\"#{i}\">y</div>" }.join
         clean = described_class.sanitize(html, sanitize_dom: true)
         ids.each do |i|

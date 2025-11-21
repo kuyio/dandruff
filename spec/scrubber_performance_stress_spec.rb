@@ -3,7 +3,7 @@
 begin
   require 'rspec'
 rescue LoadError
-  RSpec = nil
+  # RSpec = nil
 end
 require_relative '../lib/scrubber'
 
@@ -13,7 +13,8 @@ if defined?(RSpec) && RSpec
       describe 'large document processing' do
         it 'processes large documents efficiently' do
           start_time = Time.now
-          large_doc = "<div>#{'<p>Test paragraph with <strong>bold</strong> and <em>italic</em> text.</p>' * 1000}</div>"
+          content = '<p>Test paragraph with <strong>bold</strong> and <em>italic</em> text.</p>' * 1000
+          large_doc = "<div>#{content}</div>"
           clean = described_class.sanitize(large_doc)
           end_time = Time.now
 
@@ -79,8 +80,8 @@ if defined?(RSpec) && RSpec
 else
   puts 'RSpec not available; running stress scenarios directly...'
 
-  def ensure!(&block)
-    raise 'Assertion failed' unless block.call
+  def ensure!
+    raise 'Assertion failed' unless yield
   end
 
   start_time = Time.now
@@ -94,7 +95,7 @@ else
   1000.times do |i|
     dirty = "<div>Document #{i} with <script>alert('xss')</script> and safe content</div>"
     clean = Scrubber.sanitize(dirty)
-    ensure! { !clean.include?('<script') }
+    ensure! { !clean.include?('<script') } # rubocop:disable Rails/NegateInclude
   end
   ensure! { (Time.now - start_time) < 10.0 }
   puts 'Many small documents: passed'

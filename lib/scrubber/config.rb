@@ -108,6 +108,7 @@ module Scrubber
     # Processes profile configurations to set allowed tags and attributes
     #
     # @return [void]
+    # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     def process_profiles
       if @allowed_tags.nil?
         @allowed_tags = ['#text']
@@ -137,5 +138,6 @@ module Scrubber
 
       @allowed_attributes += Attributes::MATH_ML + Attributes::XML
     end
+    # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
   end
 end

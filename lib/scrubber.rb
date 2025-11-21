@@ -241,7 +241,7 @@ module Scrubber
         lc_name = transform_case(name)
         value = attr.value
         execute_hooks(:upon_sanitize_attribute, attr, { tag_name: tag_name, attr_name: lc_name, value: value })
-        next if valid_attribute?(tag_name, lc_name, value)
+        next if valid_attribute?(lc_name, value)
 
         to_remove << name
         @removed << { attribute: attr, from: node }
@@ -283,7 +283,7 @@ module Scrubber
     # @param attr_name [String] the attribute name
     # @param value [String] the attribute value
     # @return [Boolean] true if the attribute is valid, false otherwise
-    def valid_attribute?(tag_name, attr_name, value) # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+    def valid_attribute?(attr_name, value) # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       # puts "Checking attribute: #{tag_name} #{attr_name}=#{value}"
       return false if @config.forbidden_attributes&.include?(attr_name)
 
@@ -393,38 +393,43 @@ module Scrubber
         align-content align-items align-self all animation animation-delay animation-direction animation-duration
         animation-fill-mode animation-iteration-count animation-name animation-play-state animation-timing-function
         background background-clip background-color background-image background-origin background-position
-        background-repeat background-size border border-bottom border-bottom-color border-bottom-style border-bottom-width
+        background-repeat background-size border border-bottom border-bottom-color border-bottom-style
+        border-bottom-width
         border-collapse border-color border-image border-left border-left-color border-left-style border-left-width
         border-radius border-right border-right-color border-right-style border-right-width border-spacing border-style
         border-top border-top-color border-top-style border-top-width border-width bottom box-shadow box-sizing
-        caption-side clear clip color column-count column-fill column-gap column-rule column-rule-color column-rule-style
+        caption-side clear clip color column-count column-fill column-gap column-rule column-rule-color
+        column-rule-style
         column-rule-width column-span column-width columns content cursor direction display empty-cells filter flex
         flex-basis flex-direction flex-flow flex-grow flex-shrink flex-wrap float font font-family font-size
         font-size-adjust font-stretch font-style font-variant font-weight gap grid grid-area grid-auto-columns
         grid-auto-flow grid-auto-rows grid-column grid-column-end grid-column-gap grid-column-start grid-gap grid-row
-        grid-row-end grid-row-gap grid-row-start grid-template grid-template-areas grid-template-columns grid-template-rows
-        height justify-content left letter-spacing line-height list-style list-style-image list-style-position list-style-type
+        grid-row-end grid-row-gap grid-row-start grid-template grid-template-areas grid-template-columns
+        grid-template-rows
+        height justify-content left letter-spacing line-height list-style list-style-image
+        list-style-position list-style-type
         margin margin-bottom margin-left margin-right margin-top max-height max-width min-height min-width opacity order
-        outline outline-color outline-offset outline-style outline-width overflow overflow-x overflow-y padding padding-bottom
-        padding-left padding-right padding-top page-break-after page-break-before page-break-inside perspective perspective-origin
-        pointer-events position quotes resize right row-gap table-layout text-align text-align-last text-decoration text-decoration-color
-        text-decoration-line text-decoration-style text-indent text-justify text-overflow text-shadow text-transform top transform
-        transform-origin transition transition-delay transition-duration transition-property transition-timing-function
-        unicode-bidi vertical-align visibility white-space width word-break word-spacing word-wrap writing-mode z-index
+        outline outline-color outline-offset outline-style outline-width overflow overflow-x overflow-y padding
+        padding-bottom padding-left padding-right padding-top page-break-after page-break-before page-break-inside
+        perspective perspective-origin pointer-events position quotes resize right row-gap table-layout text-align
+        text-align-last text-decoration text-decoration-color text-decoration-line text-decoration-style text-indent
+        text-justify text-overflow text-shadow text-transform top transform transform-origin transition transition-delay
+        transition-duration transition-property transition-timing-function unicode-bidi vertical-align visibility
+        white-space width word-break word-spacing word-wrap writing-mode z-index
       ])
 
       declarations = value.split(';').map(&:strip).reject(&:empty?)
-      sanitized = declarations.map do |decl|
+      sanitized = declarations.filter_map do |decl|
         prop, val = decl.split(':', 2).map { |p| p&.strip }
         next nil unless prop && val
 
         lc_prop = prop.downcase
         next nil unless allowed_props.include?(lc_prop)
         # reject dangerous urls/protocols in values
-        return nil if unsafe_inline_style?(val)
+        next nil if unsafe_inline_style?(val)
 
         "#{lc_prop}:#{val}"
-      end.compact
+      end
 
       return nil if sanitized.empty?
 
@@ -626,12 +631,13 @@ module Scrubber
 
     # Checks if an attribute is valid for a given tag (public API)
     #
-    # @param tag [String] the element tag name
+    # Checks if an attribute is valid for a given tag (public API)
+    #
     # @param attr [String] the attribute name
     # @param value [String] the attribute value
     # @return [Boolean] true if the attribute is valid, false otherwise
-    def valid_attribute?(tag, attr, value)
-      @instance.send(:valid_attribute?, tag, attr, value)
+    def valid_attribute?(attr, value)
+      @instance.send(:valid_attribute?, attr, value)
     end
 
     # Adds a hook function for a specific entry point

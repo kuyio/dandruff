@@ -26,6 +26,7 @@ RSpec.describe Scrubber do
     before do
       described_class.clear_config
     end
+
     describe 'allowed_tags configuration' do
       it 'restricts to only allowed tags' do
         described_class.set_config(allowed_tags: %w[p strong])
