@@ -691,11 +691,11 @@ module Scrubber
 
       # For whole_document/html_email profiles, allow style tags at top level (in head/body)
       # This is safe because the entire document structure is being preserved
-      if @config.whole_document
-        # Only block style in truly unsafe contexts
+      if @config.whole_document && @config.allow_style_tags
+        # Only block style in truly unsafe contexts (e.g., option/select)
         return true if %w[option select].include?(parent_name)
-        return true if node.content.include?('<') || node.element_children.any?
 
+        # Allow style tags even if they contain CSS content
         return false
       end
 
