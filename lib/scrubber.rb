@@ -296,7 +296,15 @@ module Scrubber
         return false
       end
 
-      return false if attr_name == 'style' && value && unsafe_inline_style?(value)
+      if attr_name == 'style' && value
+        sanitized_style = sanitize_style_value(value)
+        return false unless sanitized_style
+
+        # mutate value to the sanitized version
+        attr_name.replace(attr_name)
+        value.replace(sanitized_style) if value.respond_to?(:replace)
+        return true
+      end
 
       if @config.sanitize_dom && value && !value.to_s.strip.empty? && %w[name id].include?(attr_name) &&
           (Attributes::DOM_CLOBBERING.include?(value.downcase))
@@ -359,6 +367,51 @@ module Scrubber
         normalized.include?('behavior:') ||
         normalized.include?('binding:') ||
         normalized.match?(%r{url\([^)]*data:}i)
+    end
+
+    def sanitize_style_value(value)
+      return nil if unsafe_inline_style?(value)
+      return nil if value.match?(/\\[0-9a-f]{1,6}/i)
+
+      allowed_props = Set.new(%w[
+        align-content align-items align-self all animation animation-delay animation-direction animation-duration
+        animation-fill-mode animation-iteration-count animation-name animation-play-state animation-timing-function
+        background background-clip background-color background-image background-origin background-position
+        background-repeat background-size border border-bottom border-bottom-color border-bottom-style border-bottom-width
+        border-collapse border-color border-image border-left border-left-color border-left-style border-left-width
+        border-radius border-right border-right-color border-right-style border-right-width border-spacing border-style
+        border-top border-top-color border-top-style border-top-width border-width bottom box-shadow box-sizing
+        caption-side clear clip color column-count column-fill column-gap column-rule column-rule-color column-rule-style
+        column-rule-width column-span column-width columns content cursor direction display empty-cells filter flex
+        flex-basis flex-direction flex-flow flex-grow flex-shrink flex-wrap float font font-family font-size
+        font-size-adjust font-stretch font-style font-variant font-weight gap grid grid-area grid-auto-columns
+        grid-auto-flow grid-auto-rows grid-column grid-column-end grid-column-gap grid-column-start grid-gap grid-row
+        grid-row-end grid-row-gap grid-row-start grid-template grid-template-areas grid-template-columns grid-template-rows
+        height justify-content left letter-spacing line-height list-style list-style-image list-style-position list-style-type
+        margin margin-bottom margin-left margin-right margin-top max-height max-width min-height min-width opacity order
+        outline outline-color outline-offset outline-style outline-width overflow overflow-x overflow-y padding padding-bottom
+        padding-left padding-right padding-top page-break-after page-break-before page-break-inside perspective perspective-origin
+        pointer-events position quotes resize right row-gap table-layout text-align text-align-last text-decoration text-decoration-color
+        text-decoration-line text-decoration-style text-indent text-justify text-overflow text-shadow text-transform top transform
+        transform-origin transition transition-delay transition-duration transition-property transition-timing-function
+        unicode-bidi vertical-align visibility white-space width word-break word-spacing word-wrap writing-mode z-index
+      ])
+
+      declarations = value.split(';').map(&:strip).reject(&:empty?)
+      sanitized = declarations.map do |decl|
+        prop, val = decl.split(':', 2).map { |p| p&.strip }
+        next nil unless prop && val
+        lc_prop = prop.downcase
+        next nil unless allowed_props.include?(lc_prop)
+        # reject dangerous urls/protocols in values
+        return nil if unsafe_inline_style?(val)
+        val
+        "#{lc_prop}:#{val}"
+      end.compact
+
+      return nil if sanitized.empty?
+
+      sanitized.join('; ')
     end
 
     def unsafe_style_block?(content)

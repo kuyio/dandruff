@@ -554,6 +554,10 @@ All options accept `snake_case` keys. Defaults are chosen for safety and DOMPuri
 | `parser_media_type` | `'text/html'` | Parser media type; set to `application/xhtml+xml` for XHTML parsing. |
 | `custom_element_handling` | `nil` | Optional handling for custom elements. |
 
+#### CSS sanitization
+- Inline `style` attributes are parsed into declarations and only allowed properties are retained; any dangerous value (javascript: / expression / @import / behavior / binding / data:*) drops the whole attribute.
+- `<style>` tags remain default-deny; opt-in `allow_style_tags` still drops blocks containing unsafe content. |
+
 Usage examples:
 
 ```ruby

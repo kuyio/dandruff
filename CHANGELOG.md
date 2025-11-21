@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inline style filtering hardened to catch behavior/binding directives and data SVG URLs; style opt-in drops blocks containing these payloads.
 - `sanitize_until_stable` defaults to 2 passes (bounded), with `pass_limit` to disable or increase passes.
 - Removed `return_trusted_type` flag to avoid implying browser Trusted Types; always return String unless `return_dom`/`return_dom_fragment`.
+- Inline styles now parsed into allowed declarations with protocol checks; unsafe values drop the entire attribute.
 
 ## [0.4.0] - 2025-11-20
 
