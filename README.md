@@ -55,44 +55,50 @@ $ gem install scrubber
 ```ruby
 require 'scrubber'
 
+# Preferred: create a configured instance
+scrubber = Scrubber.new
+
 # Basic sanitization - removes XSS attacks
 dirty_html = '<script>alert("xss")</script><p>Safe content</p>'
-clean_html = Scrubber.sanitize(dirty_html)
+clean_html = scrubber.sanitize(dirty_html)
 # => "<p>Safe content</p>"
 
 # Configure for your use case
-Scrubber.configure do |config|
-  config.allowed_attributes = ['p', 'strong', 'em', 'a']
+scrubber = Scrubber.new do |config|
+  config.allowed_tags = ['p', 'strong', 'em', 'a']
   config.allowed_attributes = ['href', 'title', 'class']
 end
 
 # Now sanitize with your custom rules
 html = '<p class="intro"><strong>Important:</strong> <a href="/about">Learn more</a></p>'
-clean = Scrubber.sanitize(html)
+clean = scrubber.sanitize(html)
 # => '<p class="intro"><strong>Important:</strong> <a href="/about">Learn more</a></p>'
+
+# Convenience: Scrubber.sanitize(html) will build a fresh instance with default config
 ```
 
 ## Configuration
 
-Scrubber offers flexible configuration through a block-based API or direct method calls. All configuration options use `snake_case` naming for Ruby idiomatics.
+Scrubber offers flexible configuration through a block-based API or direct method calls. All configuration options use `snake_case` naming for Ruby idiomatics. Unless noted, the snippets below assume you have an instance named `scrubber` (e.g., `scrubber = Scrubber.new`).
 
 ### Basic Configuration
 
 ```ruby
 # Block-based configuration (recommended)
-Scrubber.configure do |config|
+scrubber = Scrubber.new do |config|
   config.allowed_tags = ['p', 'strong', 'em']
   config.allowed_attributes = ['class', 'href']
 end
 
-# Direct configuration
-Scrubber.set_config(
+# Direct configuration on an existing instance
+scrubber = Scrubber.new
+scrubber.set_config(
   allowed_tags: ['p', 'strong', 'em'],
   allowed_attributes: ['class', 'href']
 )
 
 # Per-call configuration
-clean = Scrubber.sanitize(dirty_html,
+clean = scrubber.sanitize(dirty_html,
   allowed_tags: ['p', 'strong'],
   allowed_attributes: ['class']
 )
@@ -104,24 +110,24 @@ Use predefined profiles for common content types:
 
 ```ruby
 # HTML content
-Scrubber.set_config(use_profiles: { html: true })
+scrubber.set_config(use_profiles: { html: true })
 
 # SVG support
-Scrubber.set_config(use_profiles: { svg: true })
+scrubber.set_config(use_profiles: { svg: true })
 
 # MathML for mathematical content
-Scrubber.set_config(use_profiles: { math_ml: true })
+scrubber.set_config(use_profiles: { math_ml: true })
 
 # Multiple profiles
-Scrubber.set_config(use_profiles: { html: true, svg: true })
+scrubber.set_config(use_profiles: { html: true, svg: true })
 
 # SVG filters
-Scrubber.set_config(use_profiles: { svg_filters: true })
+scrubber.set_config(use_profiles: { svg_filters: true })
 
 # HTML Email support (uses per-tag attribute restrictions for improved security)
 # Allows head, meta, style tags and email-specific attributes like bgcolor, cellpadding
 # Uses fine-grained per-tag control to prevent attribute confusion attacks
-Scrubber.set_config(use_profiles: { html_email: true })
+scrubber.set_config(use_profiles: { html_email: true })
 ```
 
 ### Controlling which HTML Tags are allowed
@@ -134,7 +140,7 @@ Scrubber given you fine-grained control over which HTML tags are allowed in sani
 Specify exactly which tags to allow. When set, **only these tags** will be permitted:
 
 ```ruby
-Scrubber.configure do |config|
+scrubber.configure do |config|
   config.allowed_tags = ['p', 'strong', 'em', 'a', 'ul', 'li']
   # Only these 6 tags will be allowed
 end
@@ -146,7 +152,7 @@ end
 Tags that are always removed, even if in `allowed_tags`:
 
 ```ruby
-Scrubber.configure do |config|
+scrubber.configure do |config|
   config.forbidden_tags = ['script', 'iframe', 'object']
 end
 ```
@@ -157,7 +163,7 @@ end
 Additional tags to allow **beyond the defaults**. Use this to extend the default safe tag list:
 
 ```ruby
-Scrubber.configure do |config|
+scrubber.configure do |config|
   config.additional_tags = ['custom-element', 'web-component']
   # Allows all default tags PLUS these custom ones
 end
@@ -174,7 +180,7 @@ In addition to controlling the allowed set of HTML attributes, Scrubber also let
 Specify exactly which attributes to allow. When set, **only these attributes** will be permitted:
 
 ```ruby
-Scrubber.configure do |config|
+scrubber.configure do |config|
   config.allowed_attributes = ['href', 'title', 'class', 'id']
   # Only these 4 attributes will be allowed on any tag
 end
@@ -186,7 +192,7 @@ end
 Attributes that are always removed:
 
 ```ruby
-Scrubber.configure do |config|
+scrubber.configure do |config|
   config.forbidden_attributes = ['onclick', 'onerror', 'onload']
 end
 ```
@@ -197,7 +203,7 @@ end
 Additional attributes to allow **beyond the defaults**. Use this to extend the default safe attribute list:
 
 ```ruby
-Scrubber.configure do |config|
+scrubber.configure do |config|
   config.additional_attributes = ['data-toggle', 'aria-label']
   # Allows all default attributes PLUS these custom ones
 end
@@ -209,7 +215,7 @@ end
 Attributes that can contain URIs and should be validated:
 
 ```ruby
-Scrubber.configure do |config|
+scrubber.configure do |config|
   config.additional_uri_safe_attributes = ['poster', 'srcset']
 end
 ```
@@ -222,7 +228,7 @@ Specify which attributes are allowed on specific HTML tags. This provides fine-g
 **Format:** `{ 'tag_name' => ['attr1', 'attr2', ...] }`
 
 ```ruby
-Scrubber.configure do |config|
+scrubber.configure do |config|
   config.allowed_attributes_per_tag = {
     'a' => ['href', 'title', 'target'],
     'img' => ['src', 'alt', 'width', 'height'],
@@ -233,11 +239,11 @@ end
 
 # Now only specified attributes are allowed on each tag
 html = '<a href="/page" onclick="alert()">Link</a>'
-Scrubber.sanitize(html)
+scrubber.sanitize(html)
 # => '<a href="/page">Link</a>' (onclick removed, href kept)
 
 html = '<img src="pic.jpg" href="/bad">'
-Scrubber.sanitize(html)
+scrubber.sanitize(html)
 # => '<img src="pic.jpg">' (href removed from img tag)
 ```
 
@@ -245,7 +251,7 @@ Scrubber.sanitize(html)
 
 ```ruby
 # Restrict link targets and prevent attribute confusion attacks
-Scrubber.configure do |config|
+scrubber.configure do |config|
   config.allowed_attributes_per_tag = {
     'a' => ['href', 'title'],           # No target attribute
     'img' => ['src', 'alt'],            # No href on images
@@ -262,7 +268,7 @@ end
 - `additional_attributes` is ignored for tags with per-tag rules
 
 ```ruby
-Scrubber.configure do |config|
+scrubber.configure do |config|
   config.allowed_attributes_per_tag = {
     'a' => ['href', 'onclick']  # onclick specified here
   }
@@ -270,7 +276,7 @@ Scrubber.configure do |config|
 end
 
 html = '<a href="/page" onclick="alert()">Link</a>'
-Scrubber.sanitize(html)
+scrubber.sanitize(html)
 # => '<a href="/page">Link</a>' (onclick removed by forbidden_attributes)
 ```
 
@@ -294,12 +300,12 @@ Scrubber let's you control separately how URIs and protocols are handled.
 Allow `data:` URIs in attributes:
 
 ```ruby
-Scrubber.configure do |config|
+scrubber.configure do |config|
   config.allow_data_uri = true
 end
 
 # Now this works
-Scrubber.sanitize('<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...">')
+scrubber.sanitize('<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...">')
 ```
 
 #### `allowed_uri_regexp`
@@ -308,7 +314,7 @@ Scrubber.sanitize('<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...">')
 Customize allowed URI patterns:
 
 ```ruby
-Scrubber.configure do |config|
+scrubber.configure do |config|
   # Only allow HTTPS and relative URLs
   config.allowed_uri_regexp = /^(?:https?:|\/[^\/])/
 end
@@ -324,11 +330,11 @@ Use the following configuration options to control the format and structure of s
 Return a Nokogiri document instead of HTML string:
 
 ```ruby
-Scrubber.configure do |config|
+scrubber.configure do |config|
   config.return_dom = true
 end
 
-doc = Scrubber.sanitize(html)
+doc = scrubber.sanitize(html)
 puts doc.class  # Nokogiri::HTML::Document
 ```
 
@@ -338,11 +344,11 @@ puts doc.class  # Nokogiri::HTML::Document
 Return a Nokogiri document fragment:
 
 ```ruby
-Scrubber.configure do |config|
+scrubber.configure do |config|
   config.return_dom_fragment = true
 end
 
-fragment = Scrubber.sanitize(html)
+fragment = scrubber.sanitize(html)
 puts fragment.class  # Nokogiri::HTML::DocumentFragment
 ```
 
@@ -352,11 +358,11 @@ puts fragment.class  # Nokogiri::HTML::DocumentFragment
 Treat input as complete HTML document:
 
 ```ruby
-Scrubber.configure do |config|
+scrubber.configure do |config|
   config.whole_document = true
 end
 
-Scrubber.sanitize('<html><body><p>Content</p></body></html>')
+scrubber.sanitize('<html><body><p>Content</p></body></html>')
 ```
 
 ### Content Control
@@ -368,14 +374,14 @@ Whether to preserve text content from removed tags:
 
 ```ruby
 # With keep_content: true (default)
-Scrubber.sanitize('<script>alert("xss")</script>safe text')
+scrubber.sanitize('<script>alert("xss")</script>safe text')
 # => "safe text"
 
 # With keep_content: false
-Scrubber.configure do |config|
+scrubber.configure do |config|
   config.keep_content = false
 end
-Scrubber.sanitize('<script>alert("xss")</script>safe text')
+scrubber.sanitize('<script>alert("xss")</script>safe text')
 # => ""
 ```
 
@@ -387,11 +393,11 @@ Scrubber.sanitize('<script>alert("xss")</script>safe text')
 Remove template expressions (`{{ }}`, `<%= %>`, `${ }`) for template safety:
 
 ```ruby
-Scrubber.configure do |config|
+scrubber.configure do |config|
   config.safe_for_templates = true
 end
 
-Scrubber.sanitize('<div>{{user.input}}</div>')
+scrubber.sanitize('<div>{{user.input}}</div>')
 # => "<div>  </div>"  # Expressions removed
 ```
 
@@ -401,7 +407,7 @@ Scrubber.sanitize('<div>{{user.input}}</div>')
 Remove comments that could be risky in XML contexts:
 
 ```ruby
-Scrubber.configure do |config|
+scrubber.configure do |config|
   config.safe_for_xml = false  # Allow comments
 end
 ```
@@ -469,12 +475,12 @@ You can further extend Scrubber's sanitization behavior with hooks:
 
 ```ruby
 # Before sanitizing elements
-Scrubber.add_hook(:before_sanitize_elements) do |node, data, config|
+scrubber.add_hook(:before_sanitize_elements) do |node, data, config|
   puts "Processing: #{node.name}"
 end
 
 # During attribute sanitization
-Scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
+scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
   if data[:attr_name] == 'data-custom'
     # Force keep this attribute
     data[:keep_attr] = true
@@ -482,13 +488,13 @@ Scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
 end
 
 # After sanitizing elements
-Scrubber.add_hook(:after_sanitize_elements) do |node, data, config|
+scrubber.add_hook(:after_sanitize_elements) do |node, data, config|
   # Custom post-processing
 end
 
 # Remove hooks
-Scrubber.remove_hook(:before_sanitize_elements, my_hook_function)
-Scrubber.remove_all_hooks
+scrubber.remove_hook(:before_sanitize_elements, my_hook_function)
+scrubber.remove_all_hooks
 ```
 
 #### Per-Tag Attribute Control with Hooks
@@ -498,7 +504,7 @@ Hooks provide powerful per-tag attribute control, allowing you to specify which 
 **Example: Allow specific attributes only on certain tags**
 
 ```ruby
-Scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
+scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
   tag_name = data[:tag_name]
   attr_name = data[:attr_name]
   
@@ -523,7 +529,7 @@ end
 
 ```ruby
 # Allow specific data attributes only on certain custom elements
-Scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
+scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
   tag_name = data[:tag_name]
   attr_name = data[:attr_name]
   
@@ -552,7 +558,7 @@ Scrubber provides comprehensive XSS protection based on DOMPurify's battle-teste
 
 #### Maximum Security (User-Generated Content)
 ```ruby
-Scrubber.configure do |config|
+scrubber.configure do |config|
   config.allowed_tags = ['p', 'strong', 'em', 'a', 'br']
   config.allowed_attributes = ['href']
   config.forbidden_attributes = ['onclick', 'onerror', 'onload', 'onmouseover', 'style']
@@ -563,7 +569,7 @@ end
 
 #### Content Management System
 ```ruby
-Scrubber.configure do |config|
+scrubber.configure do |config|
   config.allowed_tags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'strong', 'em', 'a', 'ul', 'ol', 'li', 'blockquote', 'code', 'pre', 'br', 'div', 'span']
   config.allowed_attributes = ['href', 'title', 'class', 'id']
   config.additional_attributes = ['data-*']  # Allow data attributes
@@ -574,7 +580,7 @@ end
 
 #### Rich Text Editor
 ```ruby
-Scrubber.configure do |config|
+scrubber.configure do |config|
   config.allowed_tags = ['p', 'strong', 'em', 'a', 'ul', 'ol', 'li', 'blockquote', 'code', 'pre', 'br', 'h1', 'h2', 'h3', 'table', 'thead', 'tbody', 'tr', 'th', 'td']
   config.allowed_attributes = ['href', 'title', 'class', 'colspan', 'rowspan']
   config.forbidden_attributes = ['style']  # Prevent CSS injection
@@ -594,7 +600,7 @@ end
 
 ### Core Methods
 
-#### `Scrubber.sanitize(dirty_html, config = {})`
+#### `scrubber.sanitize(dirty_html, config = {})`
 Sanitize HTML string or Nokogiri node.
 
 **Parameters:**
@@ -603,38 +609,41 @@ Sanitize HTML string or Nokogiri node.
 
 **Returns:** Sanitized HTML string or Nokogiri document
 
-#### `Scrubber.configure { |config| ... }`
-Configure Scrubber globally using a block.
+#### `scrubber.configure { |config| ... }`
+Configure a scrubber instance using a block.
 
-#### `Scrubber.set_config(config_hash)`
+#### `scrubber.set_config(config_hash)`
 Set configuration directly with a hash.
 
-#### `Scrubber.clear_config`
+#### `scrubber.clear_config`
 Reset to default configuration.
 
-#### `Scrubber.is_supported?`
-Check if required dependencies (Nokogiri) are available.
+#### `scrubber.supported?`
+Check if required dependencies (Nokogiri) are available for this instance.
 
 **Returns:** Boolean
 
-#### `Scrubber.removed`
+#### `scrubber.removed`
 Get list of elements/attributes that were removed during last sanitization.
 
 **Returns:** Array of removal records
 
+#### `Scrubber.sanitize(dirty_html, config = {})`
+Convenience module method that instantiates a new scrubber with the provided config and sanitizes in one call.
+
 ### Hook Methods
 
-#### `Scrubber.add_hook(entry_point, &block)`
+#### `scrubber.add_hook(entry_point, &block)`
 Add a hook function.
 
 **Parameters:**
 - `entry_point` (Symbol): `:before_sanitize_elements`, `:after_sanitize_elements`, `:upon_sanitize_attribute`, etc.
 - `block` (Proc): Hook function
 
-#### `Scrubber.remove_hook(entry_point, hook_function = nil)`
+#### `scrubber.remove_hook(entry_point, hook_function = nil)`
 Remove specific hook or all hooks for an entry point.
 
-#### `Scrubber.remove_all_hooks`
+#### `scrubber.remove_all_hooks`
 Remove all hooks.
 
 ### Configuration Attributes (defaults and security notes)
@@ -683,21 +692,21 @@ Usage examples:
 
 ```ruby
 # Lock down to basic tags/attrs
-Scrubber.sanitize(html,
+scrubber.sanitize(html,
   allowed_tags: %w[p strong em a],
   allowed_attributes: %w[href title],
   mutation_max_passes: 2
 )
 
 # Extend defaults with a custom element and allow data URIs for images only
-Scrubber.configure do |config|
+scrubber.configure do |config|
   config.additional_tags = ['my-widget']
   config.allow_data_uri = true
   config.allowed_uri_regexp = %r{^https?://example\\.com/}
 end
 
 # Enable style tags with heuristic scanning (use cautiously)
-Scrubber.sanitize(html, allow_style_tags: true)
+scrubber.sanitize(html, allow_style_tags: true)
 ```
 
 ## Performance
@@ -713,17 +722,17 @@ Scrubber is optimized for performance while maintaining security:
 
 ```ruby
 # Good: Reuse configuration
-Scrubber.configure do |config|
+scrubber.configure do |config|
   config.allowed_tags = ['p', 'strong', 'em']
 end
 
 documents.each do |doc|
-  clean = Scrubber.sanitize(doc)  # Fast - config already set
+  clean = scrubber.sanitize(doc)  # Fast - config already set
 end
 
 # Less optimal: New config each time
 documents.each do |doc|
-  clean = Scrubber.sanitize(doc, allowed_tags: ['p', 'strong', 'em'])
+  clean = scrubber.sanitize(doc, allowed_tags: ['p', 'strong', 'em'])
 end
 ```
 

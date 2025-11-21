@@ -20,10 +20,11 @@ require_relative 'scrubber/utils'
 #
 # @example Basic usage
 #   require 'scrubber'
-#   clean_html = Scrubber.sanitize('<script>alert("xss")</script><p>Safe</p>')
+#   scrubber = Scrubber.new
+#   clean_html = scrubber.sanitize('<script>alert("xss")</script><p>Safe</p>')
 #
 # @example Configuration with block
-#   Scrubber.configure do |config|
+#   scrubber = Scrubber.new do |config|
 #     config.allowed_tags = ['p', 'b']
 #     config.allowed_attributes = ['class']
 #   end
@@ -42,11 +43,13 @@ module Scrubber
     # Initializes a new sanitizer instance
     #
     # @param config [Config] optional configuration object
+    # @yield [config] optional block to configure instance config
     def initialize(config = nil)
       @removed = []
-      @config = config || parse_config({})
+      @config = build_config(config)
       @hooks = create_hooks_map
       @is_supported = check_support
+      yield(@config) if block_given?
     end
 
     # Hook management
@@ -91,6 +94,15 @@ module Scrubber
     # @param cfg [Hash] configuration options
     def set_config(cfg = {})
       @config = parse_config(cfg)
+    end
+
+    # Configures the sanitizer with a block
+    #
+    # @yield [config] the configuration object to modify
+    # @return [Sanitizer] the sanitizer instance
+    def configure
+      yield(@config) if block_given?
+      self
     end
 
     # Clears current configuration, resetting to defaults
@@ -153,6 +165,14 @@ module Scrubber
     # Parses configuration options
     def parse_config(cfg = {})
       Config.new(cfg)
+    end
+
+    # Builds a configuration from hash or existing Config
+    def build_config(cfg)
+      return parse_config(cfg) if cfg.is_a?(Hash)
+      return cfg if cfg.is_a?(Config)
+
+      parse_config({})
     end
 
     # Ensures configuration is set
@@ -594,88 +614,21 @@ module Scrubber
     end
   end
 
-  @instance = Sanitizer.new
+  # Builds a new sanitizer instance with optional configuration
+  #
+  # @param cfg [Hash, Config] optional configuration to initialize with
+  # @yield [config] optional block to mutate configuration before use
+  # @return [Sanitizer] a new sanitizer instance
+  def self.new(cfg = {}, &block)
+    Sanitizer.new(cfg, &block)
+  end
 
-  class << self
-    # Sanitizes dirty HTML
-    #
-    # @param dirty [String, Nokogiri::XML::Node] the input to sanitize
-    # @param cfg [Hash] optional configuration override
-    # @return [String, Nokogiri::XML::Document] sanitized HTML or DOM
-    def sanitize(dirty, cfg = {})
-      @instance.sanitize(dirty, cfg)
-    end
-
-    # Sets configuration for the sanitizer
-    #
-    # @param cfg [Hash] configuration options
-    def set_config(cfg = {})
-      @instance.set_config(cfg)
-    end
-
-    # Configures the sanitizer using a block
-    #
-    # @yield [config] the configuration object to modify
-    def configure
-      yield(@instance.config) if block_given?
-    end
-
-    # Returns the current configuration
-    #
-    # @return [Config] the configuration object
-    def config
-      @instance.config
-    end
-
-    # Clears current configuration, resetting to defaults
-    def clear_config
-      @instance.clear_config
-    end
-
-    # Checks if the sanitizer is supported (Nokogiri available)
-    #
-    # @return [Boolean] true if supported, false otherwise
-    def supported?
-      @instance.supported?
-    end
-
-    # Returns the list of removed elements/attributes
-    #
-    # @return [Array] array of removed items
-    def removed
-      @instance.removed
-    end
-
-    # Checks if an attribute is valid for a given tag (public API)
-    #
-    # Checks if an attribute is valid for a given tag (public API)
-    #
-    # @param attr [String] the attribute name
-    # @param value [String] the attribute value
-    # @return [Boolean] true if the attribute is valid, false otherwise
-    def valid_attribute?(tag_name, attr, value)
-      @instance.send(:valid_attribute?, tag_name, attr, value)
-    end
-
-    # Adds a hook function for a specific entry point
-    #
-    # @param entry_point [Symbol] the hook entry point
-    # @yield [node, data, config] the hook function
-    def add_hook(entry_point, &block)
-      @instance.add_hook(entry_point, &block)
-    end
-
-    # Removes a hook function from a specific entry point
-    #
-    # @param entry_point [Symbol] the hook entry point
-    # @param hook_function [Proc] the hook function to remove (optional)
-    def remove_hook(entry_point, hook_function = nil)
-      @instance.remove_hook(entry_point, hook_function)
-    end
-
-    # Removes all hooks
-    def remove_all_hooks
-      @instance.hooks.each_key { |key| @instance.hooks[key] = [] }
-    end
+  # Convenience helper to sanitize with a fresh, default-configured instance.
+  #
+  # @param dirty [String, Nokogiri::XML::Node] the input to sanitize
+  # @param cfg [Hash] optional configuration override
+  # @return [String, Nokogiri::XML::Document] sanitized HTML or DOM
+  def self.sanitize(dirty, cfg = {})
+    new(cfg).sanitize(dirty)
   end
 end

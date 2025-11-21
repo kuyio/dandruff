@@ -18,9 +18,9 @@ require 'scrubber'
 class EmailSanitizer
   def self.sanitize_for_iframe(html_content)
     # Configure Scrubber for email content
-    Scrubber.configure do |c|
+    scrubber = Scrubber.new do |c|
       # Allow email-specific tags
-      allowed_tags: [
+      c.allowed_tags = [
         # Basic formatting
         'p', 'br', 'div', 'span',
         # Text formatting
@@ -37,10 +37,10 @@ class EmailSanitizer
         'blockquote', 'hr', 'pre', 'code',
         # Email-specific
         'font', 'center'
-      ],
+      ]
 
       # Allow safe attributes
-      allowed_attributes: [
+      c.allowed_attributes = [
         # Links
         'href', 'title', 'target',
         # Images
@@ -53,33 +53,33 @@ class EmailSanitizer
         'type', 'start',
         # General
         'id', 'dir'
-      ],
+      ]
 
       # Security settings
-      forbidden_tags: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button'],
-      forbidden_attributes: ['onclick', 'onload', 'onerror', 'onmouseover', 'javascript:'],
+      c.forbidden_tags = ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button']
+      c.forbidden_attributes = ['onclick', 'onload', 'onerror', 'onmouseover', 'javascript:']
 
       # Allow data attributes for tracking (optional)
-      allow_data_attr: true,
+      c.allow_data_attributes = true
 
       # Allow ARIA attributes for accessibility
-      allow_aria_attr: true,
+      c.allow_aria_attributes = true
 
       # Safe for templates (remove template expressions)
-      safe_for_templates: true,
+      c.safe_for_templates = true
 
       # Keep comments for email client compatibility
-      safe_for_xml: false,
+      c.safe_for_xml = false
 
       # Don't return whole document (we want fragment)
-      whole_document: false
-    )
+      c.whole_document = false
+    end
 
     # Add hooks for additional security
-    add_email_security_hooks
+    add_email_security_hooks(scrubber)
 
     # Sanitize the email content
-    clean_html = Scrubber.sanitize(html_content)
+    clean_html = scrubber.sanitize(html_content)
 
     # Post-process for iframe safety
     post_process_for_iframe(clean_html)
@@ -87,25 +87,25 @@ class EmailSanitizer
 
   private
 
-  def self.add_email_security_hooks
+  def self.add_email_security_hooks(scrubber)
     # Hook to sanitize URLs
-    Scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
+    scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
       case data[:attr_name]
       when 'href'
         # Block dangerous protocols
-        href = data[:attr_value]
+        href = data[:value]
         if href.match?(/\b(javascript|data|vbscript):/i)
           data[:keep_attr] = false
         end
       when 'src'
         # Only allow http/https protocols for images
-        src = data[:attr_value]
+        src = data[:value]
         unless src.match?(/\b(https?):/i)
           data[:keep_attr] = false
         end
       when 'style'
         # Remove dangerous CSS
-        style = data[:attr_value]
+        style = data[:value]
         if style.match?(/(expression|javascript|behavior|import)/i)
           data[:keep_attr] = false
         end
@@ -113,7 +113,7 @@ class EmailSanitizer
     end
 
     # Hook to process table elements
-    Scrubber.add_hook(:before_sanitize_elements) do |node, data, config|
+    scrubber.add_hook(:before_sanitize_elements) do |node, data, config|
       # Remove tables with excessive nesting (potential DoS)
       if node.name == 'table'
         depth = count_table_depth(node)

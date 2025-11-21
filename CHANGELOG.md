@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `minimal_profile` option to use an HTML-only allowlist (SVG/MathML off by default when enabled) and drop document wrappers unless explicitly allowed.
 - CSS tests expanded for nested/escaped `@import`; URI parsing tightened to reject leading whitespace/control characters.
 - Inline styles now parsed into allowed declarations with protocol checks; unsafe values drop the entire attribute.
+- Scrubber now uses instance-based configuration (`Scrubber.new(config)`) instead of module-level global state; the module-level `Scrubber.sanitize` is a convenience wrapper that builds a fresh instance per call.
 
 ## [0.4.0] - 2025-11-20
 

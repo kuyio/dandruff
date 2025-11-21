@@ -12,13 +12,14 @@ puts
 
 # Example usage
 dirty_html = '<script>alert("xss")</script><p class="safe">Safe content</p>'
-clean_html = Scrubber.sanitize(dirty_html)
+scrubber = Scrubber.new
+clean_html = scrubber.sanitize(dirty_html)
 
 puts "Original: #{dirty_html}"
 puts "Clean:    #{clean_html}"
 puts
 
 # Test with configuration
-Scrubber.set_config(allowed_tags: ['p'], allowed_attr: [])
-configured_clean = Scrubber.sanitize(dirty_html)
+configured_scrubber = Scrubber.new(allowed_tags: ['p'], allowed_attributes: [])
+configured_clean = configured_scrubber.sanitize(dirty_html)
 puts "With config: #{configured_clean}"
