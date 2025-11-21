@@ -58,6 +58,12 @@ module Scrubber
       xlink:href xml:id xlink:title xml:space xmlns:xlink
     ].freeze
 
+    # Attributes allowed in HTML emails (includes legacy attributes)
+    HTML_EMAIL = (HTML + %w[
+      target bgcolor text link vlink alink background border cellpadding cellspacing
+      width height align valign face size color content
+    ]).freeze
+
     DANGEROUS = %w[
       onclick ondblclick onmousedown onmouseup onmouseover onmousemove
       onmouseout onkeypress onkeydown onkeyup onload onunload onabort

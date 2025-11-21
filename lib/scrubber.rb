@@ -262,12 +262,14 @@ module Scrubber
           %w[html head body].include?(tag_name)
         return false
       end
+
       return false if @config.forbidden_tags&.include?(tag_name)
 
       unless @config.allowed_tags.nil?
         allowed = @config.allowed_tags.dup
         allowed.concat(@config.additional_tags) if @config.additional_tags
-        return allowed.include?(tag_name)
+        is_included = allowed.include?(tag_name)
+        return is_included
       end
       return true if @config.additional_tags&.include?(tag_name)
       return true if tag_name.include?('-')
@@ -282,18 +284,22 @@ module Scrubber
     # @param value [String] the attribute value
     # @return [Boolean] true if the attribute is valid, false otherwise
     def valid_attribute?(tag_name, attr_name, value) # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+      # puts "Checking attribute: #{tag_name} #{attr_name}=#{value}"
       return false if @config.forbidden_attributes&.include?(attr_name)
 
-      unless @config.allowed_attributes.nil?
-        allowed = @config.allowed_attributes.dup
-        allowed.concat(@config.additional_attributes) if @config.additional_attributes
-        return allowed.include?(attr_name)
-      end
+      # Security: Check dangerous attributes (name and value) FIRST
       return false if Attributes::DANGEROUS.any? { |d| attr_name.match?(/#{d}/i) }
       if value && Attributes::DANGEROUS.any? do |d|
         value.match?(/#{d}/i)
       end && !(@config.allow_data_uri && value.match?(/^data:/i))
         return false
+      end
+
+      # Check allowed attributes list if configured
+      unless @config.allowed_attributes.nil?
+        allowed = @config.allowed_attributes.dup
+        allowed.concat(@config.additional_attributes) if @config.additional_attributes
+        return false unless allowed.include?(attr_name)
       end
 
       if attr_name == 'style' && value
@@ -307,17 +313,18 @@ module Scrubber
       end
 
       if @config.sanitize_dom && value && !value.to_s.strip.empty? && %w[name id].include?(attr_name) &&
-          (Attributes::DOM_CLOBBERING.include?(value.downcase))
+          Attributes::DOM_CLOBBERING.include?(value.downcase)
         return false
       end
-      return true if @config.additional_attributes&.include?(attr_name)
-      return true if @config.allow_data_attributes && attr_name.match?(Expressions::DATA_ATTR)
-      return true if @config.allow_aria_attributes && attr_name.match?(Expressions::ARIA_ATTR)
 
-      if value && uri_like?(attr_name)
+      # URI validation
+      if uri_like?(attr_name)
+        return true unless value
+
         val = value.to_s
         return false if val.strip != val
         return false if val.match?(/[\x00-\x1f\x7f]/)
+
         decoded = begin
           URI.decode_www_form_component(val)
         rescue StandardError
@@ -326,16 +333,22 @@ module Scrubber
         return false if @config.allowed_uri_regexp && !val.match?(@config.allowed_uri_regexp)
         return true if @config.allow_data_uri && decoded.match?(/^data:/i)
         return true if decoded.match?(Expressions::IS_ALLOWED_URI)
-      elsif uri_like?(attr_name)
-        return true
+
+        return true if @config.allow_unknown_protocols && !decoded.match?(Expressions::IS_SCRIPT_OR_DATA)
+
+        return false # Reject invalid URIs
       end
-      if ['src', 'xlink:href', 'href'].include?(attr_name) &&
-          tag_name != 'script' && value&.start_with?('data:') && @config.allow_data_uri &&
-          data_uri_tags.include?(tag_name)
-        return true
-      end
+
+      # If we have an allowed list and passed all checks, it's valid
+      return true unless @config.allowed_attributes.nil?
+
+      # Default permissive checks (when no allowed list is set)
+      return true if @config.additional_attributes&.include?(attr_name)
+      return true if @config.allow_data_attributes && attr_name.match?(Expressions::DATA_ATTR)
+      return true if @config.allow_aria_attributes && attr_name.match?(Expressions::ARIA_ATTR)
+
       if @config.allow_unknown_protocols && value && !value.match?(Expressions::IS_SCRIPT_OR_DATA)
-        return false if value.match?(%r{^data:}i) && !@config.allow_data_uri
+        return false if value.match?(/^data:/i) && !@config.allow_data_uri
 
         return true
       end
@@ -355,11 +368,11 @@ module Scrubber
       normalized = value.downcase
       # Decode CSS hex escapes to surface hidden protocol names
       normalized = normalized.gsub(/\\([0-9a-f]{1,6})\s?/i) do
-        [$1.to_i(16)].pack('U')
+        [::Regexp.last_match(1).to_i(16)].pack('U')
       rescue StandardError
         ''
       end
-      normalized = normalized.gsub(/\\/, '')
+      normalized = normalized.delete('\\')
       normalized = normalized.gsub(/\s+/, '')
       normalized.include?('javascript:') ||
         normalized.include?('expression(') ||
@@ -369,7 +382,7 @@ module Scrubber
         normalized.include?('data:svg+xml') ||
         normalized.include?('behavior:') ||
         normalized.include?('binding:') ||
-        normalized.match?(%r{url\([^)]*data:}i)
+        normalized.match?(/url\([^)]*data:/i)
     end
 
     def sanitize_style_value(value)
@@ -404,11 +417,12 @@ module Scrubber
       sanitized = declarations.map do |decl|
         prop, val = decl.split(':', 2).map { |p| p&.strip }
         next nil unless prop && val
+
         lc_prop = prop.downcase
         next nil unless allowed_props.include?(lc_prop)
         # reject dangerous urls/protocols in values
         return nil if unsafe_inline_style?(val)
-        val
+
         "#{lc_prop}:#{val}"
       end.compact
 

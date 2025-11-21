@@ -395,6 +395,9 @@ Scrubber.set_config(use_profiles: { html: true, svg: true })
 
 # SVG filters
 Scrubber.set_config(use_profiles: { svg_filters: true })
+
+# HTML Email support (allows head, meta, style, etc.)
+Scrubber.set_config(use_profiles: { html_email: true })
 ```
 
 ### Hooks

@@ -115,11 +115,22 @@ module Scrubber
         @allowed_tags += Tags::SVG if @use_profiles[:svg]
         @allowed_tags += Tags::SVG_FILTERS if @use_profiles[:svg_filters]
         @allowed_tags += Tags::MATH_ML if @use_profiles[:math_ml]
+        @allowed_tags += Tags::SVG if @use_profiles[:svg]
+        @allowed_tags += Tags::SVG_FILTERS if @use_profiles[:svg_filters]
+        @allowed_tags += Tags::MATH_ML if @use_profiles[:math_ml]
+        if @use_profiles[:html_email]
+          @allowed_tags += Tags::HTML_EMAIL
+          @allow_style_tags = true
+          @allow_document_elements = true
+          @allow_unknown_protocols = false
+          @forbidden_tags -= %w[meta style]
+        end
       end
       return unless @allowed_attributes.nil?
 
       @allowed_attributes = []
       @allowed_attributes += Attributes::HTML if @use_profiles[:html]
+      @allowed_attributes += Attributes::HTML_EMAIL if @use_profiles[:html_email]
       @allowed_attributes += Attributes::SVG + Attributes::XML if @use_profiles[:svg]
       @allowed_attributes += Attributes::SVG + Attributes::XML if @use_profiles[:svg_filters]
       return unless @use_profiles[:math_ml]

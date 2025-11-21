@@ -30,6 +30,13 @@ module Scrubber
       mpadded mphantom mglyph
     ].freeze
 
+    # Tags allowed in HTML emails (includes legacy tags, excludes scripts/forms)
+    HTML_EMAIL = (HTML + %w[
+      head meta title style center font
+    ] - %w[
+      script form input select textarea button object embed iframe frame frameset
+    ]).freeze
+
     TEXT = %w[#text].freeze
   end
 end
