@@ -1,9 +1,14 @@
-# Changelog
+## [Unreleased]
 
-All notable changes to this project will be documented in this file.
+## [0.6.0] - 2025-11-22
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+### Fixed
+- Refined CSS validation to allow safe CSS (behavior:, binding:, data:image/svg+xml) while blocking dangerous patterns.
+- Updated HTML email profile: enabled style tags, preserved document elements, disabled DOM clobbering, allowed data attributes.
+- Fixed namespace handling: preserve text content when removing unknown namespaces.
+- Updated SVG attribute handling: safe handling of filter, data URIs, feImage.
+- Updated configuration handling: added explicit allow_data_attributes flag for strict attribute lists.
+- Updated tests to reflect new behavior.
 
 ## [0.5.0] - 2025-11-21
 

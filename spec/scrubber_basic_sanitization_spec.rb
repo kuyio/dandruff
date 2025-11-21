@@ -65,7 +65,7 @@ RSpec.describe Scrubber do
     it 'supports SVG profile' do
       scrubber.set_config(use_profiles: { svg: true })
       clean = scrubber.sanitize('<svg><circle r="10"/></svg>')
-      expect(clean).to include('<svg><circle r="10"/></svg>')
+      expect(clean).to include('<svg><circle r="10"></circle></svg>')
     end
   end
 

@@ -55,7 +55,7 @@ module Scrubber
     ].freeze
 
     XML = %w[
-      xlink:href xml:id xlink:title xml:space xmlns:xlink
+      xlink:href xml:id xlink:title xml:space xmlns:xlink xmlns
     ].freeze
 
     # Attributes allowed in HTML emails (includes legacy attributes)

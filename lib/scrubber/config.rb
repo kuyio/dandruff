@@ -146,6 +146,7 @@ module Scrubber
           @allow_document_elements = true
           @allow_unknown_protocols = false
           @whole_document = true
+          @sanitize_dom = false # Emails use IDs for styling, rendered in sandboxed contexts
           @forbidden_tags -= %w[meta style]
         end
       end

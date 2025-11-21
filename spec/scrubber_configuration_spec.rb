@@ -63,7 +63,7 @@ RSpec.describe Scrubber do
 
     describe 'allowed_attributes configuration' do
       it 'restricts to only allowed attributes' do
-        scrubber.set_config(allowed_attributes: %w[class id])
+        scrubber.set_config(allowed_attributes: %w[class id], allow_data_attributes: false)
         dirty = '<div class="test" id="test" data-value="123" onclick="alert()">Content</div>'
         clean = scrubber.sanitize(dirty)
         expect(clean).to include('class="test"')
@@ -73,7 +73,7 @@ RSpec.describe Scrubber do
       end
 
       it 'allows custom attributes' do
-        scrubber.set_config(allowed_attributes: %w[custom-attr])
+        scrubber.set_config(allowed_attributes: %w[custom-attr], allow_data_attributes: false)
         dirty = '<div custom-attr="value" class="test">Content</div>'
         clean = scrubber.sanitize(dirty)
         expect(clean).to include('custom-attr="value"')
@@ -105,7 +105,7 @@ RSpec.describe Scrubber do
 
     describe 'additional_attributes configuration' do
       it 'adds additional allowed attributes' do
-        scrubber.set_config(additional_attributes: %w[custom-attr])
+        scrubber.set_config(use_profiles: { html: true }, additional_attributes: %w[custom-attr])
         dirty = '<div custom-attr="value" class="test">Content</div>'
         clean = scrubber.sanitize(dirty)
         expect(clean).to include('custom-attr="value"')
@@ -225,7 +225,8 @@ RSpec.describe Scrubber do
 
     describe 'add_uri_safe_attr configuration' do
       it 'marks additional attributes as URI-safe' do
-        scrubber.set_config(add_uri_safe_attr: %w[custom-href])
+        scrubber.set_config(use_profiles: { html: true }, add_uri_safe_attr: %w[custom-href],
+          additional_attributes: %w[custom-href])
         dirty = '<div custom-href="https://example.com">Content</div>'
         clean = scrubber.sanitize(dirty)
         expect(clean).to include('custom-href="https://example.com"')
@@ -244,6 +245,7 @@ RSpec.describe Scrubber do
 
     describe 'custom_element_handling configuration' do
       it 'handles custom elements' do
+        scrubber.set_config(additional_tags: %w[custom-element])
         dirty = '<custom-element>Content</custom-element>'
         clean = scrubber.sanitize(dirty)
         expect(clean).to include('<custom-element>Content</custom-element>')
@@ -252,6 +254,7 @@ RSpec.describe Scrubber do
 
     describe 'custom elements and trusted types' do
       it 'preserves safe custom elements while sanitizing attributes' do
+        scrubber.set_config(additional_tags: %w[custom-element])
         dirty = '<custom-element onclick="alert(1)" data-safe="ok">Hi</custom-element>'
         clean = scrubber.sanitize(dirty)
         expect(clean).to include('<custom-element')

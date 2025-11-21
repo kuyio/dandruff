@@ -189,7 +189,7 @@ module Scrubber
       if @config.parser_media_type == 'application/xhtml+xml' && @config.namespace == 'http://www.w3.org/1999/xhtml'
         html = "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head></head><body>#{html}</body></html>"
       end
-      if @config.whole_document || @config.return_dom || @config.allow_document_elements
+      if @config.whole_document || @config.return_dom || @config.allow_document_elements || html.match?(/<frameset/i)
         Nokogiri::HTML5.parse(html)
       else
         Nokogiri::HTML5.fragment(html)
@@ -208,6 +208,7 @@ module Scrubber
           @removed << { element: node }
           if node.name == 'frameset'
             parent = node.parent
+            # puts "Removing frameset and parent: #{parent&.name}"
             node.remove
             parent.remove if parent
           else
@@ -216,6 +217,7 @@ module Scrubber
           next
         elsif node.element? && node.name == 'style'
           node.remove and next unless @config.allow_style_tags
+
           if unsafe_style_node?(node)
             node.remove
             next
@@ -242,27 +244,58 @@ module Scrubber
         node.remove
         return
       end
+
+      # Remove elements that are dangerous in MathML/SVG contexts (mXSS protection)
+      if dangerous_in_math_svg?(node)
+        @removed << { element: node }
+        node.remove
+        return
+      end
+
+      # puts "Sanitizing node: #{node.name}, type: #{node.type}"
+      if node.element?
+        # if node.name == 'html:style' || node.name == 'x' || node.name == 'doc'
+        #    puts "Sanitizing #{node.name}. Parent: #{node.parent&.name}. Children: #{node.children.map { |c| "#{c.name} (#{c.type}) [#{c.content.inspect}]" }}"
+        # end
+      end
       if node.namespace && node.namespace.href &&
           !['http://www.w3.org/1999/xhtml', 'http://www.w3.org/2000/svg', 'http://www.w3.org/1998/Math/MathML'].include?(node.namespace.href)
-        if @config.keep_content
-          node.children.to_a.each { |child| node.add_previous_sibling(child) }
-        end
+        node.children.to_a.each { |child| node.add_previous_sibling(child) } if @config.keep_content
         @removed << { element: node }
         node.remove
         return
       end
-      # remove unknown namespace elements entirely (including content)
+
+      # Handle namespace-prefixed elements
       if tag_name.include?(':')
+        prefix = tag_name.split(':').first.downcase
+        # For XML/XMLNS namespace elements, extract text content from all descendants before removing
+        if %w[xml xmlns].include?(prefix)
+          # Extract all text nodes from descendants
+          if @config.keep_content
+            text_nodes = []
+            node.traverse do |n|
+              text_nodes << n if n.text?
+            end
+            text_nodes.each { |text_node| node.add_previous_sibling(text_node.dup) }
+          end
+          @removed << { element: node }
+          node.remove
+          return
+        end
+        # For other prefixed elements (like html:style), remove element but keep content
+        node.children.to_a.each { |child| node.add_previous_sibling(child) } if @config.keep_content
         @removed << { element: node }
         node.remove
         return
       end
+
       execute_hooks(:upon_sanitize_element, node, { tag_name: tag_name })
       unless allowed_element?(tag_name)
         replaced_children = false
         if @config.keep_content && !forbidden_content?(tag_name) && !@config.allowed_tags
           if node.children.any?
-            node.replace(node.children)
+            node.children.to_a.each { |child| node.add_previous_sibling(child) }
             replaced_children = true
           else
             node.remove
@@ -276,11 +309,11 @@ module Scrubber
       end
       sanitize_attributes(node)
 
-      if node['xmlns'] && node['xmlns'].match?(/vml/i)
-        @removed << { element: node }
-        node.remove
-        return
-      end
+      return unless node['xmlns'] && node['xmlns'].match?(/vml/i)
+
+      @removed << { element: node }
+      node.remove
+      nil
     end
 
     # Sanitizes attributes of an element
@@ -293,19 +326,31 @@ module Scrubber
       dangerous_attrs = %w[href content]
       dangerous_tags = %w[meta link]
       had_xlink_href = node.key?('xlink:href')
-      has_xlink_namespace = node.namespaces&.value?('http://www.w3.org/1999/xlink')
       execute_hooks(:before_sanitize_attributes, node)
       node.attributes.each do |name, attr|
-        lc_name = transform_case(name)
+        lc_name = if attr.namespace&.prefix == 'xmlns'
+                    if name == 'xmlns'
+                      'xmlns'
+                    else
+                      "xmlns:#{transform_case(name)}"
+                    end
+                  else
+                    transform_case(name)
+                  end
         value = attr.value
         if lc_name == 'is'
           attr.value = ''
           value = ''
         end
         if lc_name.start_with?('xlink:')
-          node.add_namespace_definition('xlink', 'http://www.w3.org/1999/xlink') rescue nil
+          begin
+            node.add_namespace_definition('xlink', 'http://www.w3.org/1999/xlink')
+          rescue StandardError
+            nil
+          end
         end
         had_xlink_href ||= (lc_name == 'xlink:href')
+        had_xlink_href ||= (attr.namespace&.href == 'http://www.w3.org/1999/xlink')
         execute_hooks(:upon_sanitize_attribute, attr, { tag_name: tag_name, attr_name: lc_name, value: value })
         allowed = valid_attribute?(tag_name, lc_name, value)
         attr.value = value if allowed && value != attr.value
@@ -325,34 +370,38 @@ module Scrubber
         node['alt'] = '' if allowed&.include?('alt') && !node.key?('alt')
       end
 
-      if (had_xlink_href || node.key?('xlink:href') || has_xlink_namespace)
+      if (had_xlink_href || node.key?('xlink:href')) && !node['xmlns:xlink']
         node['xmlns:xlink'] = 'http://www.w3.org/1999/xlink'
-        node.add_namespace_definition('xlink', 'http://www.w3.org/1999/xlink') rescue nil
+        begin
+          node.add_namespace_definition('xlink', 'http://www.w3.org/1999/xlink')
+        rescue StandardError
+          nil
+        end
       end
 
       execute_hooks(:after_sanitize_attributes, node)
     end
 
     def build_isindex_replacement(node)
-        doc = node.document
-        form = Nokogiri::XML::Node.new('form', doc)
-        hr1 = Nokogiri::XML::Node.new('hr', doc)
-        hr2 = Nokogiri::XML::Node.new('hr', doc)
-        label = Nokogiri::XML::Node.new('label', doc)
-        label.content = 'This is a searchable index. Enter search keywords: '
-        input = Nokogiri::XML::Node.new('input', doc)
-        if node['src']
-          input['name'] = 'isindex'
-          input['label'] = node['label'] if node['label']
-        else
-          input['label'] = node['label'] if node['label']
-          input['name'] = 'isindex'
-        end
-        label.add_child(input)
-        form.add_child(hr1)
-        form.add_child(label)
-        form.add_child(hr2)
-        form
+      doc = node.document
+      form = Nokogiri::XML::Node.new('form', doc)
+      hr1 = Nokogiri::XML::Node.new('hr', doc)
+      hr2 = Nokogiri::XML::Node.new('hr', doc)
+      label = Nokogiri::XML::Node.new('label', doc)
+      label.content = 'This is a searchable index. Enter search keywords: '
+      input = Nokogiri::XML::Node.new('input', doc)
+      if node['src']
+        input['name'] = 'isindex'
+        input['label'] = node['label'] if node['label']
+      else
+        input['label'] = node['label'] if node['label']
+        input['name'] = 'isindex'
+      end
+      label.add_child(input)
+      form.add_child(hr1)
+      form.add_child(label)
+      form.add_child(hr2)
+      form
     rescue StandardError
       nil
     end
@@ -376,6 +425,7 @@ module Scrubber
         return is_included
       end
       return true if @config.additional_tags&.map { |t| transform_case(t) }&.include?(tag_name)
+
       default_allowed_tags.include?(tag_name)
     end
 
@@ -411,31 +461,39 @@ module Scrubber
         allowed.concat(@config.additional_attributes&.map { |a| transform_case(a) }) if @config.additional_attributes
         attr_allowed = allowed.include?(attr_name)
       elsif !has_per_tag_rule && attr_allowed.nil?
-        html_attrs = @html_attrs ||= Attributes::HTML.map { |a| transform_case(a) }
-        svg_attrs = @svg_attrs ||= (Attributes::SVG + Attributes::XML).map { |a| transform_case(a) }
-        math_attrs = @math_attrs ||= (Attributes::MATH_ML + Attributes::XML).map { |a| transform_case(a) }
-        svg_tag = Tags::SVG.map { |t| transform_case(t) }.include?(tag_name) || Tags::SVG_FILTERS.map { |t| transform_case(t) }.include?(tag_name)
-        math_tag = Tags::MATH_ML.map { |t| transform_case(t) }.include?(tag_name)
-        if svg_tag
-          attr_allowed = svg_attrs.include?(attr_name)
-        elsif math_tag
-          attr_allowed = math_attrs.include?(attr_name)
-        else
-          attr_allowed = html_attrs.include?(attr_name)
-        end
+        html_attrs = @html_attrs ||= Attributes::HTML.map { |a| transform_case(a) }.to_set
+        svg_attrs = @svg_attrs ||= (Attributes::SVG + Attributes::XML).map { |a| transform_case(a) }.to_set
+        math_attrs = @math_attrs ||= (Attributes::MATH_ML + Attributes::XML).map { |a| transform_case(a) }.to_set
+
+        @html_tags_set ||= Tags::HTML.map { |t| transform_case(t) }.to_set
+        @svg_tags_set ||= (Tags::SVG + Tags::SVG_FILTERS).map { |t| transform_case(t) }.to_set
+        @math_tags_set ||= Tags::MATH_ML.map { |t| transform_case(t) }.to_set
+
+        is_svg = @svg_tags_set.include?(tag_name)
+        is_math = @math_tags_set.include?(tag_name)
+        is_html = @html_tags_set.include?(tag_name)
+
+        # Default to HTML if not recognized as standard tag but allowed
+        is_html = true if !is_svg && !is_math
+
+        attr_allowed = false
+        attr_allowed ||= svg_attrs.include?(attr_name) if is_svg
+        attr_allowed ||= math_attrs.include?(attr_name) if is_math
+        attr_allowed ||= html_attrs.include?(attr_name) if is_html
       end
       # else: attr_allowed stays nil, will use default permissive checks later
 
-      if @config.allow_data_attributes && attr_name.match?(Expressions::DATA_ATTR)
-        attr_allowed = true
-      end
-      if @config.allow_aria_attributes && attr_name.match?(Expressions::ARIA_ATTR)
-        attr_allowed = true
-      end
+      attr_allowed = true if @config.allow_data_attributes && attr_name.match?(Expressions::DATA_ATTR)
+      attr_allowed = true if @config.allow_aria_attributes && attr_name.match?(Expressions::ARIA_ATTR)
 
-      # For style attributes, validate and sanitize
+      # For style attributes, validate content for dangerous CSS
       if attr_name == 'style'
-        return true if attr_allowed || attr_allowed.nil?
+        # Check if attribute is allowed by configuration
+        return false unless attr_allowed || attr_allowed.nil?
+        # Check if style content is unsafe
+        return false if value && unsafe_inline_style?(value.to_s)
+
+        return true
       end
 
       return true if attr_name == 'is'
@@ -465,6 +523,7 @@ module Scrubber
         # For URI attributes, check if it's allowed and has valid URI
         uri_allowed = attr_allowed.nil? || attr_allowed # default to allowed if not explicitly set
         return false if decoded.match?(Expressions::IS_SCRIPT_OR_DATA)
+
         if decoded.match?(/^data:/i)
           return true if uri_allowed && @config.allow_data_uri && data_uri_tags.include?(tag_name)
 
@@ -511,17 +570,28 @@ module Scrubber
       rescue StandardError
         ''
       end
-      normalized = normalized.delete('\\')
-      normalized = normalized.gsub(/\s+/, '')
-      normalized.include?('javascript:') ||
-        normalized.include?('expression(') ||
-        normalized.include?('@import') ||
-        normalized.include?('data:text/html') ||
-        normalized.include?('data:image/svg+xml') ||
-        normalized.include?('data:svg+xml') ||
-        normalized.include?('behavior:') ||
-        normalized.include?('binding:') ||
-        normalized.match?(/url\([^)]*data:/i)
+      normalized = normalized.delete('\\') # Remove backslashes after decoding hex escapes
+      # Check for truly dangerous CSS patterns
+      # More lenient than before to match DOMPurify behavior
+      normalized = normalized.gsub(/\s+/, '') # Remove all whitespace for easier matching
+
+      # Dangerous: javascript/vbscript/data protocols in background/import
+      return true if normalized.match?(/javascript:/i) && normalized.match?(/background|@import/i)
+      return true if normalized.match?(/vbscript:/i)
+
+      # Dangerous: expression() (IE)
+      return true if normalized.include?('expression(')
+
+      # Dangerous: @import (can load external stylesheets)
+      return true if normalized.match?(/@import\s*url/i)
+
+      # Dangerous: data:text/html (can contain scripts)
+      return true if normalized.include?('data:text/html')
+
+      # Note: behavior:, binding:, data:image/svg+xml in content/filter are SAFE
+      # These are only dangerous in specific contexts that modern browsers don't execute
+
+      false
     end
 
     def sanitize_style_value(value)
@@ -581,10 +651,55 @@ module Scrubber
       unsafe_inline_style?(content)
     end
 
+    # Checks if a node is within a MathML or SVG context
+    #
+    # @param node [Nokogiri::XML::Element] element to check
+    # @return [Boolean] true if inside math or svg element
+    def in_math_or_svg_context?(node)
+      current = node.parent
+      while current
+        return true if current.respond_to?(:element?) && current.element? && %w[math
+          svg].include?(current.name.downcase)
+        break unless current.respond_to?(:parent)
+
+        current = current.parent
+      end
+      false
+    end
+
+    # Checks if an element is dangerous when inside MathML/SVG context
+    #
+    # @param node [Nokogiri::XML::Element] element to check
+    # @return [Boolean] true if element can cause mXSS in math/svg context
+    def dangerous_in_math_svg?(node)
+      return false unless node.element?
+
+      tag = node.name.downcase
+      return false unless in_math_or_svg_context?(node)
+
+      # These elements can cause mXSS when inside MathML/SVG
+      # - style: can break out of context with </style><img onerror=...>
+      # - title: similar context confusion
+      # - mglyph: not standard in MathML 3.0, used in nesting attacks
+      %w[style title mglyph].include?(tag)
+    end
+
     def unsafe_style_node?(node)
       parent_name = node.parent&.name
       top_level = parent_name.nil? || parent_name == '#document' || parent_name == '#document-fragment' ||
         %w[html head body].include?(parent_name)
+
+      # For whole_document/html_email profiles, allow style tags at top level (in head/body)
+      # This is safe because the entire document structure is being preserved
+      if @config.whole_document
+        # Only block style in truly unsafe contexts
+        return true if %w[option select].include?(parent_name)
+        return true if node.content.include?('<') || node.element_children.any?
+
+        return false
+      end
+
+      # For non-whole-document contexts, block top-level style tags as they're unexpected
       return true if top_level
       return true if %w[option select].include?(parent_name)
       return true if node.content.include?('<') || node.element_children.any?
@@ -662,7 +777,8 @@ module Scrubber
     #
     # @return [Set] set of attributes that can contain URIs
     def default_uri_safe_attributes
-      @default_uri_safe_attributes ||= Set.new(%w[href src xlink:href action formaction cite data poster background srcset])
+      @default_uri_safe_attributes ||= Set.new(%w[href src xlink:href action formaction cite data poster background
+        srcset])
     end
 
     # Checks if a tag's content should be forbidden

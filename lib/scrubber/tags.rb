@@ -17,7 +17,7 @@ module Scrubber
     ].freeze
 
     SVG = %w[svg g path rect circle ellipse line polyline polygon text tspan textPath marker pattern defs desc mask
-      linearGradient radialGradient stop use image view symbol feImage filter].freeze
+      linearGradient radialGradient stop use image view symbol feImage filter a title].freeze
 
     SVG_FILTERS = %w[
       filter feBlend feColorMatrix feComponentTransfer feComposite feConvolveMatrix feDiffuseLighting
