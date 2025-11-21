@@ -377,6 +377,19 @@ RSpec.describe Scrubber do
         expect(clean).not_to include('data:image/svg+xml')
         expect(clean).not_to include('style=')
       end
+
+      it 'removes nested @import chains' do
+        dirty = '<style>@import url("http://evil/x.css"); @import url("javascript:alert(1)");</style>'
+        clean = described_class.sanitize(dirty)
+        expect(clean).not_to include('<style')
+      end
+
+      it 'removes escaped @import injections' do
+        dirty = '<div style="@\\69mport url(javascript:alert(1))">X</div>'
+        clean = described_class.sanitize(dirty)
+        expect(clean).not_to include('@import')
+        expect(clean).not_to include('style=')
+      end
     end
 
     describe 'encoding and bypass attempts' do
@@ -406,6 +419,12 @@ RSpec.describe Scrubber do
         dirty = '<img src="jav&#x61;script:alert(\'xss\')">'
         clean = described_class.sanitize(dirty)
         expect(clean).not_to include('alert')
+      end
+
+      it 'blocks leading whitespace in URIs' do
+        dirty = "<a href=\"\\n javascript:alert(1)\">x</a>"
+        clean = described_class.sanitize(dirty)
+        expect(clean).not_to include('href')
       end
     end
 

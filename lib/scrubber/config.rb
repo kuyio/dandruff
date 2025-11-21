@@ -16,7 +16,7 @@ module Scrubber
       :mathml_text_integration_points, :namespace, :parser_media_type,
       :return_dom_fragment, :return_dom,
       :safe_for_templates, :safe_for_xml, :sanitize_dom, :sanitize_until_stable, :mutation_max_passes,
-      :sanitize_named_props, :trusted_types_policy, :use_profiles, :allow_style_tags,
+      :sanitize_named_props, :trusted_types_policy, :use_profiles, :allow_style_tags, :minimal_profile,
       :whole_document, :allow_document_elements
 
     # Initializes a new configuration instance
@@ -48,6 +48,7 @@ module Scrubber
       @mutation_max_passes = 2        # conservative default pass limit
       @keep_content = true
       @in_place = false
+      @minimal_profile = false
 
       # Profiles / namespaces
       @use_profiles = {}
@@ -96,6 +97,7 @@ module Scrubber
           'allow_self_close_in_attributes' => :allow_self_close_in_attributes=,
           'allow_style_tags' => :allow_style_tags=,
           'allow_document_elements' => :allow_document_elements=,
+          'minimal_profile' => :minimal_profile=,
           'pass_limit' => :mutation_max_passes=
         }
         setter = mapping[normalized] || :"#{normalized}="

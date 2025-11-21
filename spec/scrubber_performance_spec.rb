@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
+require_relative '../lib/scrubber'
 require 'benchmark'
 require 'securerandom'
-require 'scrubber'
 
 # Generate large HTML document for performance testing
 def generate_large_html(size_kb)
@@ -109,16 +109,28 @@ def test_memory_usage
 
     # Measure memory before and after sanitization
     GC.start
-    memory_before = `ps -o rss= -p #{Process.pid}`.to_i
+    memory_before = begin
+      `ps -o rss= -p #{Process.pid}`.to_i
+    rescue StandardError
+      nil
+    end
 
     # Run multiple sanitizations
     5.times { Scrubber.sanitize(html) }
 
     GC.start
-    memory_after = `ps -o rss= -p #{Process.pid}`.to_i
+    memory_after = begin
+      `ps -o rss= -p #{Process.pid}`.to_i
+    rescue StandardError
+      nil
+    end
 
-    memory_used = memory_after - memory_before
-    puts "  #{size_kb}KB: #{memory_used}KB additional memory used"
+    if memory_before && memory_after
+      memory_used = memory_after - memory_before
+      puts "  #{size_kb}KB: #{memory_used}KB additional memory used"
+    else
+      puts "  #{size_kb}KB: memory measurement skipped (ps unavailable)"
+    end
   end
 end
 

@@ -542,6 +542,7 @@ All options accept `snake_case` keys. Defaults are chosen for safety and DOMPuri
 | `safe_for_xml` | `true` | If true, removes comments/PI in XML-ish content. |
 | `whole_document` | `false` | Parse as full document instead of fragment. |
 | `allow_document_elements` | `false` | When `whole_document` is false, drop `html/head/body`. Set true to retain them (slightly larger surface). |
+| `minimal_profile` | `false` | Use a smaller HTML-only allowlist (no SVG/MathML). |
 | `force_body` | `false` | Forces body context when parsing fragments. |
 | `return_dom` | `false` | Return Nokogiri DOM instead of string. |
 | `return_dom_fragment` | `false` | Return Nokogiri fragment instead of string. |
@@ -555,7 +556,7 @@ All options accept `snake_case` keys. Defaults are chosen for safety and DOMPuri
 | `custom_element_handling` | `nil` | Optional handling for custom elements. |
 
 #### CSS sanitization
-- Inline `style` attributes are parsed into declarations and only allowed properties are retained; any dangerous value (javascript: / expression / @import / behavior / binding / data:*) drops the whole attribute.
+- Inline `style` attributes are parsed into declarations and only allowed properties are retained; any dangerous value (javascript: / expression / @import / behavior / binding / data:* (including SVG) or escaped variants) drops the whole attribute.
 - `<style>` tags remain default-deny; opt-in `allow_style_tags` still drops blocks containing unsafe content. |
 
 Usage examples:
@@ -605,6 +606,22 @@ documents.each do |doc|
   clean = Scrubber.sanitize(doc, allowed_tags: ['p', 'strong', 'em'])
 end
 ```
+
+### Benchmarks (Apple M1 Max, local run)
+
+Executed via `ruby spec/scrubber_performance_spec.rb` (multi-pass sanitization enabled by default):
+
+- 1KB HTML (10 iters): Default ~3.3ms avg; Strict ~0.3ms avg
+- 10KB HTML (10 iters): Default ~31ms avg; Strict ~3.3ms avg
+- 50KB HTML (10 iters): Default ~154–161ms avg; Strict ~16ms avg
+- 100KB HTML (10 iters): Default ~320–350ms avg; Strict ~31ms avg
+- 500KB HTML (10 iters): Default ~1.7–1.8s avg; Strict ~0.16–0.17s avg
+- Throughput ranges: ~280–325 KB/s (default), ~3,100 KB/s (strict) across sizes
+
+Stress scenarios (from `spec/scrubber_performance_stress_spec.rb` fallback runner):
+- 1,000 small docs: ~0.40s total (~2,450 docs/sec)
+- Deep nesting (100 levels): <5s target met
+- Memory growth check: <50k object growth over 100 iterations
 
 ## Migration Guide
 

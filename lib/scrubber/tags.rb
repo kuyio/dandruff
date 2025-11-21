@@ -2,6 +2,10 @@
 
 module Scrubber
   module Tags
+    MINIMAL_HTML = %w[
+      a b blockquote br code div em h1 h2 h3 h4 h5 h6 i img li ol p pre span strong table tbody td th thead tr ul
+    ].freeze
+
     # HTML tags allowed by default, matching DOMPurify's comprehensive list
     HTML = %w[
       a abbr address area article aside audio b bdi bdo blockquote body br button canvas caption cite code

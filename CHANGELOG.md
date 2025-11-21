@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Specs covering metadata tag stripping, data/file URI enforcement, obfuscated CSS payloads, expanded DOM clobbering identifiers, attribute hook execution, SVG/MathML hardening, mutation-XSS stabilization, and DOM clobbering canonical parity.
 - Canonical DOM clobbering denylist test to track parity with DOMPurify.
+- Performance section in README with benchmark stats from local Apple M1 Max runs.
 
 ### Changed
 - Default forbidden tags now include `base`, `link`, `meta`, and `style`; removed these from the default allowlist to mirror DOMPurify defaults.
@@ -25,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inline style filtering hardened to catch behavior/binding directives and data SVG URLs; style opt-in drops blocks containing these payloads.
 - `sanitize_until_stable` defaults to 2 passes (bounded), with `pass_limit` to disable or increase passes.
 - Removed `return_trusted_type` flag to avoid implying browser Trusted Types; always return String unless `return_dom`/`return_dom_fragment`.
+- Added `minimal_profile` option to use an HTML-only allowlist (SVG/MathML off by default when enabled) and drop document wrappers unless explicitly allowed.
+- CSS tests expanded for nested/escaped `@import`; URI parsing tightened to reject leading whitespace/control characters.
 - Inline styles now parsed into allowed declarations with protocol checks; unsafe values drop the entire attribute.
 
 ## [0.4.0] - 2025-11-20

@@ -315,12 +315,15 @@ module Scrubber
       return true if @config.allow_aria_attributes && attr_name.match?(Expressions::ARIA_ATTR)
 
       if value && uri_like?(attr_name)
+        val = value.to_s
+        return false if val.strip != val
+        return false if val.match?(/[\x00-\x1f\x7f]/)
         decoded = begin
-          URI.decode_www_form_component(value)
+          URI.decode_www_form_component(val)
         rescue StandardError
-          value
+          val
         end
-        return false if @config.allowed_uri_regexp && !value.match?(@config.allowed_uri_regexp)
+        return false if @config.allowed_uri_regexp && !val.match?(@config.allowed_uri_regexp)
         return true if @config.allow_data_uri && decoded.match?(/^data:/i)
         return true if decoded.match?(Expressions::IS_ALLOWED_URI)
       elsif uri_like?(attr_name)
@@ -473,10 +476,13 @@ module Scrubber
     # @return [Set] set of allowed HTML, SVG, MathML, and text tags
     def default_allowed_tags
       @default_allowed_tags ||= begin
-        s = Set.new(Tags::HTML)
-        s.merge(Tags::SVG)
-        s.merge(Tags::SVG_FILTERS)
-        s.merge(Tags::MATH_ML)
+        source = @config.minimal_profile ? Tags::MINIMAL_HTML : Tags::HTML
+        s = Set.new(source)
+        unless @config.minimal_profile
+          s.merge(Tags::SVG)
+          s.merge(Tags::SVG_FILTERS)
+          s.merge(Tags::MATH_ML)
+        end
         s.merge(Tags::TEXT)
         s
       end
