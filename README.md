@@ -98,9 +98,33 @@ clean = Scrubber.sanitize(dirty_html,
 )
 ```
 
-### Tag Control
+### Profiles
 
-Control which HTML tags are allowed in sanitized output.
+Use predefined profiles for common content types:
+
+```ruby
+# HTML content
+Scrubber.set_config(use_profiles: { html: true })
+
+# SVG support
+Scrubber.set_config(use_profiles: { svg: true })
+
+# MathML for mathematical content
+Scrubber.set_config(use_profiles: { math_ml: true })
+
+# Multiple profiles
+Scrubber.set_config(use_profiles: { html: true, svg: true })
+
+# SVG filters
+Scrubber.set_config(use_profiles: { svg_filters: true })
+
+# HTML Email support (allows head, meta, style, etc.)
+Scrubber.set_config(use_profiles: { html_email: true })
+```
+
+### Controlling which HTML Tags are allowed
+
+Scrubber given you fine-grained control over which HTML tags are allowed in sanitized output. You can you use the following config options to allow or deny specific tags.
 
 #### `allowed_tags`
 **Type:** `Array<String>` | **Default:** Comprehensive list of safe HTML tags (see default allow lists below)
@@ -136,65 +160,11 @@ Scrubber.configure do |config|
   # Allows all default tags PLUS these custom ones
 end
 ```
+---
 
-**Note:** `allowed_*` vs `additional_*`
-- Use `allowed_tags`/`allowed_attributes` to specify an **exact whitelist** (restrictive)
-- Use `additional_tags`/`additional_attributes` to **extend** the default safe lists (permissive)
-- `forbidden_*` always takes precedence and removes tags/attributes regardless of other settings
+### Controlling which Attributes are allowed
 
-### Default Allow Lists
-
-When no specific `allowed_tags` or `allowed_attributes` are configured, Scrubber uses comprehensive default allow lists that balance functionality with security.
-
-#### Default Allowed Tags
-**Includes:** All standard HTML5 tags, SVG tags, MathML tags, and custom elements
-
-The default tag list includes:
-- **HTML5 semantic elements**: `article`, `section`, `header`, `footer`, `nav`, `aside`, `main`
-- **Interactive elements**: `button`, `input`, `select`, `textarea`, `form` (but attributes are sanitized)
-- **Media elements**: `audio`, `video`, `img`, `canvas`, `svg`
-- **Table elements**: `table`, `thead`, `tbody`, `tr`, `th`, `td`
-- **Typography**: `p`, `h1-h6`, `strong`, `em`, `blockquote`, `code`, `pre`
-- **Links and navigation**: `a`, `area`, `link`
-- **Metadata**: `meta`, `title`, `head`, `html`
-- **SVG and MathML**: Full support for vector graphics and mathematical notation
-- **Custom elements**: Any tag containing `-` (web components)
-
-**Security rationale:**
-- Excludes inherently dangerous tags like `<script>`, `<object>`, `<embed>`, `<iframe>`
-- Allows rich content while preventing script execution
-- Supports modern web standards (HTML5, SVG, MathML)
-- Permits custom elements for modern web development
-
-#### Default Allowed Attributes
-**Includes:** Safe attributes for layout, styling, accessibility, and functionality
-
-The default attribute list includes:
-- **Layout and positioning**: `width`, `height`, `align`, `valign`, `colspan`, `rowspan`
-- **Styling**: `class`, `style`, `color`, `face`, `size` (but `style` content is sanitized)
-- **Accessibility**: `alt`, `title`, `lang`, `dir`, `tabindex`, `role`
-- **Forms**: `type`, `name`, `value`, `placeholder`, `required`, `disabled`
-- **Links**: `href`, `rel`, `target`, `download`
-- **Media**: `src`, `poster`, `controls`, `autoplay`, `loop`
-- **Metadata**: `id`, `data-*`, `aria-*` (when enabled)
-- **SVG/MathML**: Comprehensive attribute support for these namespaces
-
-**Security rationale:**
-- Automatically blocks dangerous attributes: `onclick`, `onload`, `javascript:`, `vbscript:`
-- Sanitizes URI attributes to prevent XSS via links
-- Validates `style` attributes to prevent CSS-based attacks
-- Allows rich interactivity while blocking script execution
-- Supports modern accessibility standards
-
-**Why these defaults:**
-- Based on DOMPurify's battle-tested allow lists
-- Comprehensive coverage prevents bypass attempts
-- Conservative approach: allow functionality, block danger
-- Regular updates ensure compatibility with web standards
-
-### Attribute Control
-
-Control which attributes are permitted on elements.
+In addition to controlling the allowed set of HTML attributes, Scrubber also let's you specify which attributes are allowed in those tags.
 
 #### `allowed_attributes`
 **Type:** `Array<String>` | **Default:** Safe attributes like `href`, `title`, `class`
@@ -242,14 +212,18 @@ Scrubber.configure do |config|
 end
 ```
 
-> **Note:** `allowed_*` vs `additional_*`
-> - Use `allowed_tags`/`allowed_attributes` to specify an **exact whitelist** (restrictive)
-> - Use `additional_tags`/`additional_attributes` to **extend** the default safe lists (permissive)
-> - `forbidden_*` always takes precedence and removes tags/attributes regardless of other settings
+---
+### Allowed vs Additional
+When deciding between `allowed_` and `additional_` use the following guiding principles:
+- Use `allowed_tags`/`allowed_attributes` to specify an **exact whitelist** (restrictive)
+- Use `additional_tags`/`additional_attributes` to **extend** the default safe lists (permissive)
+- `forbidden_*` always takes precedence and removes tags/attributes regardless of other settings
+
+---
 
 ### URI & Protocol Control
 
-Control how URIs and protocols are handled.
+Scrubber let's you control separately how URIs and protocols are handled.
 
 #### `allow_data_uri`
 **Type:** `Boolean` | **Default:** `false`
@@ -277,9 +251,9 @@ Scrubber.configure do |config|
 end
 ```
 
-### Output Control
+### Controlling the Format and Structure of the Output
 
-Control the format and structure of sanitized output.
+Use the following configuration options to control the format and structure of sanitized output.
 
 #### `return_dom`
 **Type:** `Boolean` | **Default:** `false`
@@ -374,35 +348,61 @@ end
 
 Enable DOM-based sanitization (recommended to keep enabled for security).
 
+## Default Allow Lists
+
+When no specific `allowed_tags` or `allowed_attributes` are configured, Scrubber uses comprehensive default allow lists that balance functionality with security.
+
+### Default Allowed Tags
+**Includes:** All standard HTML5 tags, SVG tags, MathML tags, and custom elements
+
+The default tag list includes:
+- **HTML5 semantic elements**: `article`, `section`, `header`, `footer`, `nav`, `aside`, `main`
+- **Interactive elements**: `button`, `input`, `select`, `textarea`, `form` (but attributes are sanitized)
+- **Media elements**: `audio`, `video`, `img`, `canvas`, `svg`
+- **Table elements**: `table`, `thead`, `tbody`, `tr`, `th`, `td`
+- **Typography**: `p`, `h1-h6`, `strong`, `em`, `blockquote`, `code`, `pre`
+- **Links and navigation**: `a`, `area`, `link`
+- **Metadata**: `meta`, `title`, `head`, `html`
+- **SVG and MathML**: Full support for vector graphics and mathematical notation
+- **Custom elements**: Any tag containing `-` (web components)
+
+**Security rationale:**
+- Excludes inherently dangerous tags like `<script>`, `<object>`, `<embed>`, `<iframe>`
+- Allows rich content while preventing script execution
+- Supports modern web standards (HTML5, SVG, MathML)
+- Permits custom elements for modern web development
+
+### Default Allowed Attributes
+**Includes:** Safe attributes for layout, styling, accessibility, and functionality
+
+The default attribute list includes:
+- **Layout and positioning**: `width`, `height`, `align`, `valign`, `colspan`, `rowspan`
+- **Styling**: `class`, `style`, `color`, `face`, `size` (but `style` content is sanitized)
+- **Accessibility**: `alt`, `title`, `lang`, `dir`, `tabindex`, `role`
+- **Forms**: `type`, `name`, `value`, `placeholder`, `required`, `disabled`
+- **Links**: `href`, `rel`, `target`, `download`
+- **Media**: `src`, `poster`, `controls`, `autoplay`, `loop`
+- **Metadata**: `id`, `data-*`, `aria-*` (when enabled)
+- **SVG/MathML**: Comprehensive attribute support for these namespaces
+
+**Security rationale:**
+- Automatically blocks dangerous attributes: `onclick`, `onload`, `javascript:`, `vbscript:`
+- Sanitizes URI attributes to prevent XSS via links
+- Validates `style` attributes to prevent CSS-based attacks
+- Allows rich interactivity while blocking script execution
+- Supports modern accessibility standards
+
+**Why these defaults:**
+- Based on DOMPurify's battle-tested allow lists
+- Comprehensive coverage prevents bypass attempts
+- Conservative approach: allow functionality, block danger
+- Regular updates ensure compatibility with web standards
+
 ## Advanced Features
-
-### Profiles
-
-Use predefined profiles for common content types:
-
-```ruby
-# HTML content
-Scrubber.set_config(use_profiles: { html: true })
-
-# SVG support
-Scrubber.set_config(use_profiles: { svg: true })
-
-# MathML for mathematical content
-Scrubber.set_config(use_profiles: { math_ml: true })
-
-# Multiple profiles
-Scrubber.set_config(use_profiles: { html: true, svg: true })
-
-# SVG filters
-Scrubber.set_config(use_profiles: { svg_filters: true })
-
-# HTML Email support (allows head, meta, style, etc.)
-Scrubber.set_config(use_profiles: { html_email: true })
-```
 
 ### Hooks
 
-Extend sanitization behavior with hooks:
+You can further extend Scrubber's sanitization behavior with hooks:
 
 ```ruby
 # Before sanitizing elements
@@ -626,23 +626,6 @@ Stress scenarios (from `spec/scrubber_performance_stress_spec.rb` fallback runne
 - Deep nesting (100 levels): <5s target met
 - Memory growth check: <50k object growth over 100 iterations
 
-## Migration Guide
-
-### From v0.1.0 to v0.2.0+
-
-**Breaking Changes:**
-- Configuration keys changed from `snake_case` to `UPPER_CASE` (now back to `snake_case`)
-- Enhanced security with additional validation
-- Improved hook system
-
-**Migration:**
-```ruby
-# Old (v0.1.0)
-Scrubber.sanitize(html, {tags: ['p', 'a']})
-
-# New (v0.2.0+)
-Scrubber.sanitize(html, allowed_tags: ['p', 'a'])
-```
 
 ## Development
 
@@ -658,9 +641,9 @@ bundle install
 
 ```bash
 # Run all tests
-rake spec
+make test
 
-# Run with coverage
+# Run test suite with coverage
 COVERAGE=true rake spec
 
 # Run specific test file
@@ -677,10 +660,10 @@ bin/console
 
 ```bash
 # Build gem
-gem build scrubber.gemspec
+make build
 
 # Install locally
-gem install scrubber-0.3.0.gem
+make install
 ```
 
 ## Contributing
