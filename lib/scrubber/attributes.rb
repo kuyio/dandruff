@@ -77,6 +77,8 @@ module Scrubber
       attributes nodevalue innerhtml outerhtml localname documenturi srcdoc url
       createelement renamenode appendchild insertbefore replacechild removechild normalize clonenode
       alert document window frames frame form forms elements children documentelement implementation
-    ].freeze
+      cookie body adoptNode activeElement firstElementChild submit acceptCharset hasChildNodes namespaceURI
+      getElementById setAttribute removeAttributeNode nodeType nodeName parentNode
+    ].map(&:downcase).freeze
   end
 end

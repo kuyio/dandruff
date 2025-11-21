@@ -29,7 +29,7 @@ module Scrubber
       @allow_self_close_in_attributes = true
 
       # URI/protocol defaults
-      @allow_data_uri = false             # block data: by default
+      @allow_data_uri = true              # allow data URIs for safe elements by default
       @allow_unknown_protocols = false    # block unknown protocols by default
 
       # Output / parsing defaults
@@ -49,6 +49,7 @@ module Scrubber
       @keep_content = true
       @in_place = false
       @minimal_profile = false
+      @allow_style_tags = true
 
       # Profiles / namespaces
       @use_profiles = {}
@@ -56,8 +57,9 @@ module Scrubber
       @parser_media_type = 'text/html'
 
       # Tag/attribute allow/forbid defaults
-      @forbidden_tags = %w[base link meta style annotation-xml]
-      @allow_style_tags = false # style tags denied unless explicitly enabled
+      @forbidden_tags = %w[base link meta annotation-xml noscript]
+
+      @allowed_attributes = nil
 
       apply_config(cfg)
       process_profiles unless @use_profiles.empty?
@@ -117,11 +119,11 @@ module Scrubber
       @allowed_tags = nil
       @allowed_attributes = nil
       @allowed_attributes_per_tag = nil
-      @allow_style_tags = false
+      @allow_style_tags = true
       @allow_document_elements = false
       @allow_unknown_protocols = false
       @whole_document = false
-      @forbidden_tags = %w[base link meta style annotation-xml]
+      @forbidden_tags = %w[base link meta annotation-xml noscript]
     end
 
     # Processes profile configurations to set allowed tags and attributes
