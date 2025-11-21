@@ -14,38 +14,49 @@ module Scrubber
       :forbidden_attributes, :forbid_attributes, :forbid_contents, :add_forbid_contents, :forbidden_tags,
       :force_body, :html_integration_points, :in_place, :keep_content,
       :mathml_text_integration_points, :namespace, :parser_media_type,
-      :return_dom_fragment, :return_dom, :return_trusted_type,
+      :return_dom_fragment, :return_dom,
       :safe_for_templates, :safe_for_xml, :sanitize_dom, :sanitize_until_stable, :mutation_max_passes,
       :sanitize_named_props, :trusted_types_policy, :use_profiles, :allow_style_tags,
-      :whole_document
+      :whole_document, :allow_document_elements
 
     # Initializes a new configuration instance
     #
     # @param cfg [Hash] configuration options to apply
     def initialize(cfg = {})
-      @allow_aria_attributes = true
-      @allow_data_attributes = true
-      @allow_data_uri = false
-      @allow_unknown_protocols = false
+      # Attribute defaults
+      @allow_aria_attributes = true   # permit aria-* attributes
+      @allow_data_attributes = true   # permit data-* attributes
       @allow_self_close_in_attributes = true
+
+      # URI/protocol defaults
+      @allow_data_uri = false             # block data: by default
+      @allow_unknown_protocols = false    # block unknown protocols by default
+
+      # Output / parsing defaults
       @safe_for_templates = false
       @safe_for_xml = true
       @whole_document = false
+      @allow_document_elements = false
       @force_body = false
       @return_dom = false
       @return_dom_fragment = false
-      @return_trusted_type = false
-      @sanitize_dom = true
+
+      # Sanitization controls
+      @sanitize_dom = true            # DOM clobbering protection enabled
       @sanitize_named_props = false
-      @sanitize_until_stable = false
-      @mutation_max_passes = 3
+      @sanitize_until_stable = true   # run multiple passes to deter mXSS
+      @mutation_max_passes = 2        # conservative default pass limit
       @keep_content = true
       @in_place = false
+
+      # Profiles / namespaces
       @use_profiles = {}
       @namespace = 'http://www.w3.org/1999/xhtml'
       @parser_media_type = 'text/html'
+
+      # Tag/attribute allow/forbid defaults
       @forbidden_tags = %w[base link meta style annotation-xml]
-      @allow_style_tags = false
+      @allow_style_tags = false # style tags denied unless explicitly enabled
 
       apply_config(cfg)
       process_profiles unless @use_profiles.empty?
@@ -83,7 +94,9 @@ module Scrubber
           'allow_data_attributes' => :allow_data_attributes=,
           'allow_self_close_in_attr' => :allow_self_close_in_attributes=, # backward compatibility
           'allow_self_close_in_attributes' => :allow_self_close_in_attributes=,
-          'allow_style_tags' => :allow_style_tags=
+          'allow_style_tags' => :allow_style_tags=,
+          'allow_document_elements' => :allow_document_elements=,
+          'pass_limit' => :mutation_max_passes=
         }
         setter = mapping[normalized] || :"#{normalized}="
         send(setter, value) if respond_to?(setter)

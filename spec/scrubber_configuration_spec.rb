@@ -23,6 +23,9 @@ RSpec.describe Scrubber do
   end
 
   describe 'Comprehensive Configuration Options' do
+    before do
+      described_class.clear_config
+    end
     describe 'allowed_tags configuration' do
       it 'restricts to only allowed tags' do
         described_class.set_config(allowed_tags: %w[p strong])
@@ -132,6 +135,23 @@ RSpec.describe Scrubber do
         expect(clean).to include('<title>Test</title>')
         expect(clean).to include('<body>')
         expect(clean).to include('<p>Content</p>')
+      end
+
+      it 'drops document-level elements by default when not whole_document' do
+        dirty = '<html><head><title>Test</title></head><body><p>Content</p></body></html>'
+        clean = described_class.sanitize(dirty)
+        expect(clean).not_to include('<html>')
+        expect(clean).not_to include('<head>')
+        expect(clean).not_to include('<body')
+        expect(clean).to include('<p>Content</p>')
+      end
+
+      it 'allows document-level elements when explicitly enabled' do
+        dirty = '<html><head><title>Test</title></head><body><p>Content</p></body></html>'
+        clean = described_class.sanitize(dirty, allow_document_elements: true)
+        expect(clean).to include('<html>')
+        expect(clean).to include('<head>')
+        expect(clean).to include('<body')
       end
     end
 
@@ -246,15 +266,6 @@ RSpec.describe Scrubber do
       end
     end
 
-    describe 'trusted_types configuration' do
-      it 'handles trusted types policy' do
-        dirty = '<div>Content</div>'
-        clean = described_class.sanitize(dirty, return_trusted_type: true)
-        expect(clean).to include('<div')
-        expect(clean).to include('Content')
-      end
-    end
-
     describe 'custom elements and trusted types' do
       it 'preserves safe custom elements while sanitizing attributes' do
         dirty = '<custom-element onclick="alert(1)" data-safe="ok">Hi</custom-element>'
@@ -262,13 +273,6 @@ RSpec.describe Scrubber do
         expect(clean).to include('<custom-element')
         expect(clean).to include('data-safe="ok"')
         expect(clean).not_to include('onclick')
-      end
-
-      it 'accepts trusted types flag without altering return type' do
-        dirty = '<p>test</p>'
-        clean = described_class.sanitize(dirty, return_trusted_type: true)
-        expect(clean).to be_a(String)
-        expect(clean).to include('<p>test</p>')
       end
     end
 

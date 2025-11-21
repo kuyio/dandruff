@@ -103,7 +103,7 @@ clean = Scrubber.sanitize(dirty_html,
 Control which HTML tags are allowed in sanitized output.
 
 #### `allowed_tags`
-**Type:** `Array<String>` | **Default:** Comprehensive list of safe HTML tags
+**Type:** `Array<String>` | **Default:** Comprehensive list of safe HTML tags (see default allow lists below)
 
 Specify exactly which tags to allow. When set, **only these tags** will be permitted:
 
@@ -137,10 +137,10 @@ Scrubber.configure do |config|
 end
 ```
 
-> **Note:** `allowed_*` vs `additional_*`
-> - Use `allowed_tags`/`allowed_attributes` to specify an **exact whitelist** (restrictive)
-> - Use `additional_tags`/`additional_attributes` to **extend** the default safe lists (permissive)
-> - `forbidden_*` always takes precedence and removes tags/attributes regardless of other settings
+**Note:** `allowed_*` vs `additional_*`
+- Use `allowed_tags`/`allowed_attributes` to specify an **exact whitelist** (restrictive)
+- Use `additional_tags`/`additional_attributes` to **extend** the default safe lists (permissive)
+- `forbidden_*` always takes precedence and removes tags/attributes regardless of other settings
 
 ### Default Allow Lists
 
@@ -186,7 +186,7 @@ The default attribute list includes:
 - Allows rich interactivity while blocking script execution
 - Supports modern accessibility standards
 
-**Why these defaults are secure:**
+**Why these defaults:**
 - Based on DOMPurify's battle-tested allow lists
 - Comprehensive coverage prevents bypass attempts
 - Conservative approach: allow functionality, block danger
@@ -462,7 +462,7 @@ Scrubber.configure do |config|
 end
 ```
 
-### Security Best Practices
+### Best Practices
 
 1. **Use allowlists, not blocklists** - Only allow known safe tags/attributes
 2. **Validate URIs** - Use `allowed_uri_regexp` to restrict protocols
@@ -518,14 +518,61 @@ Remove specific hook or all hooks for an entry point.
 #### `Scrubber.remove_all_hooks`
 Remove all hooks.
 
-### Configuration Attributes
+### Configuration Attributes (defaults and security notes)
 
-All configuration options are available as attributes on the config object:
+All options accept `snake_case` keys. Defaults are chosen for safety and DOMPurify parity. Changing them can reduce security—notes per option below.
+
+| Option | Default | Description & Security Implications |
+| --- | --- | --- |
+| `allowed_tags` | `nil` (use default safe set) | Exact allowlist of elements. When set, only these tags pass. Use to restrict surface. |
+| `additional_tags` | `[]` | Extends default safe set. Increases surface; ensure tags are non-scriptable. |
+| `forbidden_tags` | `['base','link','meta','style','annotation-xml']` | Always removed even if allowed elsewhere. Removing entries can reintroduce navigation/XSS vectors. |
+| `allowed_attributes` | `nil` (default safe set) | Exact allowlist of attributes. Restrictive; disables defaults. |
+| `additional_attributes` | `[]` | Extends default safe attributes. Expands surface; review risk. |
+| `forbidden_attributes` | `nil` | Attributes always removed. Use to hard-block specific attrs. |
+| `allow_data_attributes` | `true` | Controls `data-*`. Turning off removes all `data-*`. |
+| `allow_aria_attributes` | `true` | Controls `aria-*`. Turning off removes accessibility attrs. |
+| `allow_data_uri` | `false` | Blocks `data:` URIs by default. Enabling allows data URLs (safe only for vetted content). |
+| `allow_unknown_protocols` | `false` | If true, permits non-standard schemes (higher XSS/phishing risk). |
+| `allowed_uri_regexp` | `nil` | Custom regexp to validate URI attributes. Set to constrain destinations. |
+| `additional_uri_safe_attributes` | `[]` | Extra attributes treated as URI-like (e.g., `['filter']`). Ensure they are safe. |
+| `allow_style_tags` | `false` | `<style>` tags dropped by default. Enabling scans and drops blocks on unsafe content but remains heuristic. |
+| `sanitize_dom` | `true` | Removes clobbering `id`/`name` values. Disabling reopens DOM clobbering vectors. |
+| `safe_for_templates` | `false` | If true, strips template expressions (e.g., `{{ }}`, `${ }`, ERB). |
+| `safe_for_xml` | `true` | If true, removes comments/PI in XML-ish content. |
+| `whole_document` | `false` | Parse as full document instead of fragment. |
+| `allow_document_elements` | `false` | When `whole_document` is false, drop `html/head/body`. Set true to retain them (slightly larger surface). |
+| `force_body` | `false` | Forces body context when parsing fragments. |
+| `return_dom` | `false` | Return Nokogiri DOM instead of string. |
+| `return_dom_fragment` | `false` | Return Nokogiri fragment instead of string. |
+| `sanitize_until_stable` | `true` | Re-sanitize until stable to mitigate mutation-XSS. |
+| `mutation_max_passes` / `pass_limit` | `2` | Max passes for stabilization. Set to `0` to disable; higher increases cost. |
+| `keep_content` | `true` | If false, removes contents of stripped elements. |
+| `in_place` | `false` | If true, attempts to sanitize in place; use with care. |
+| `use_profiles` | `{}` | Enable `html`, `svg`, `svg_filters`, `math_ml` profiles to build allowlists. |
+| `namespace` | `'http://www.w3.org/1999/xhtml'` | Namespace for XHTML handling. |
+| `parser_media_type` | `'text/html'` | Parser media type; set to `application/xhtml+xml` for XHTML parsing. |
+| `custom_element_handling` | `nil` | Optional handling for custom elements. |
+
+Usage examples:
 
 ```ruby
-config = Scrubber.config
-config.allowed_tags = ['p', 'strong']
-config.allow_data_uri = true
+# Lock down to basic tags/attrs
+Scrubber.sanitize(html,
+  allowed_tags: %w[p strong em a],
+  allowed_attributes: %w[href title],
+  mutation_max_passes: 2
+)
+
+# Extend defaults with a custom element and allow data URIs for images only
+Scrubber.configure do |config|
+  config.additional_tags = ['my-widget']
+  config.allow_data_uri = true
+  config.allowed_uri_regexp = %r{^https?://example\\.com/}
+end
+
+# Enable style tags with heuristic scanning (use cautiously)
+Scrubber.sanitize(html, allow_style_tags: true)
 ```
 
 ## Performance

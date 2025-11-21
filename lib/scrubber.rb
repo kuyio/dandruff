@@ -121,12 +121,12 @@ module Scrubber
       output = resanitize_until_stable(output) if @config.sanitize_until_stable
 
       if @config.return_dom
-        parse_html(output)
+        return parse_html(output)
       elsif @config.return_dom_fragment
-        Nokogiri::HTML5::DocumentFragment.parse(output)
-      else
-        output
+        return Nokogiri::HTML5::DocumentFragment.parse(output)
       end
+
+      output
     end
 
     private
@@ -169,7 +169,7 @@ module Scrubber
       if @config.parser_media_type == 'application/xhtml+xml' && @config.namespace == 'http://www.w3.org/1999/xhtml'
         html = "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head></head><body>#{html}</body></html>"
       end
-      if @config.whole_document || @config.return_dom
+      if @config.whole_document || @config.return_dom || @config.allow_document_elements
         Nokogiri::HTML5.parse(html)
       else
         Nokogiri::HTML5.fragment(html)
@@ -258,6 +258,10 @@ module Scrubber
     # @param tag_name [String] the tag name to check
     # @return [Boolean] true if the tag is allowed, false otherwise
     def allowed_element?(tag_name)
+      if !@config.whole_document && !@config.allow_document_elements && !@config.return_dom &&
+          %w[html head body].include?(tag_name)
+        return false
+      end
       return false if @config.forbidden_tags&.include?(tag_name)
 
       unless @config.allowed_tags.nil?
@@ -365,9 +369,10 @@ module Scrubber
 
     def resanitize_until_stable(html)
       current = html
-      max_passes = [@config.mutation_max_passes.to_i, 1].max
-      passes = 1
+      max_passes = @config.mutation_max_passes.to_i
+      return current if max_passes <= 1
 
+      passes = 1
       while passes < max_passes
         doc = parse_html(current)
         sanitize_document(doc)
@@ -388,7 +393,11 @@ module Scrubber
       result = doc.respond_to?(:to_html) ? doc.to_html : doc.to_s
       result = fix_svg_self_closing_tags(result).gsub('&amp;unknown;', '&unknown;')
       # Remove encoded script blocks
-      result.gsub(%r{&lt;script&gt;.*?&lt;/script&gt;}i, '')
+      result = result.gsub(%r{&lt;script&gt;.*?&lt;/script&gt;}i, '')
+      if !@config.whole_document && !@config.allow_document_elements && !@config.return_dom
+        result = result.gsub(%r{</?(?:html|head|body)[^>]*>}i, '')
+      end
+      result
     end
 
     def fix_svg_self_closing_tags(html)

@@ -67,12 +67,10 @@ module Scrubber
     ].freeze
 
     DOM_CLOBBERING = %w[
-      alert constructor contentdocument contentwindow document elements form forms frames
-      location ownerdocument parentnode prototype window __parent__ __proto__
-      attributes documentelement implementation children
-      contentwindow contentdocument parentnode ownerdocument location attributes prototype constructor
-      nodevalue innerhtml outerhtml localname documenturi srcdoc url
-      createelement renameNode appendChild insertBefore replaceChild removeChild normalize cloneNode
+      __proto__ __parent__ constructor prototype contentwindow contentdocument parentnode ownerdocument location
+      attributes nodevalue innerhtml outerhtml localname documenturi srcdoc url
+      createelement renamenode appendchild insertbefore replacechild removechild normalize clonenode
+      alert document window frames frame form forms elements children documentelement implementation
     ].freeze
   end
 end
