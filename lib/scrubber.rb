@@ -295,20 +295,29 @@ module Scrubber
         return false
       end
 
+      # Determine if attribute is allowed for this tag
+      attr_allowed = nil # nil means "not yet determined"
+      has_per_tag_rule = false
+
       # Check per-tag allowed attributes if configured
       if @config.allowed_attributes_per_tag.is_a?(Hash)
         per_tag_attrs = @config.allowed_attributes_per_tag[tag_name]
-        return per_tag_attrs&.include?(attr_name) || false if per_tag_attrs
+        if per_tag_attrs
+          has_per_tag_rule = true
+          attr_allowed = per_tag_attrs.include?(attr_name)
+        end
       end
 
-      # Check allowed attributes list if configured
-      unless @config.allowed_attributes.nil?
+      # Check allowed attributes list if no per-tag rule applies
+      if !has_per_tag_rule && !@config.allowed_attributes.nil?
         allowed = @config.allowed_attributes.dup
         allowed.concat(@config.additional_attributes) if @config.additional_attributes
-        return false unless allowed.include?(attr_name)
+        attr_allowed = allowed.include?(attr_name)
       end
+      # else: attr_allowed stays nil, will use default permissive checks later
 
-      if attr_name == 'style' && value
+      # For style attributes, validate and sanitize
+      if attr_name == 'style' && value && (attr_allowed || attr_allowed.nil?)
         sanitized_style = sanitize_style_value(value)
         return false unless sanitized_style
 
@@ -318,15 +327,14 @@ module Scrubber
         return true
       end
 
+      # DOM clobbering protection
       if @config.sanitize_dom && value && !value.to_s.strip.empty? && %w[name id].include?(attr_name) &&
           Attributes::DOM_CLOBBERING.include?(value.downcase)
         return false
       end
 
-      # URI validation
-      if uri_like?(attr_name)
-        return true unless value
-
+      # URI validation - CRITICAL: must validate URI safety even if attribute is allowed
+      if uri_like?(attr_name) && value
         val = value.to_s
         return false if val.strip != val
         return false if val.match?(/[\x00-\x1f\x7f]/)
@@ -337,22 +345,25 @@ module Scrubber
           val
         end
         return false if @config.allowed_uri_regexp && !val.match?(@config.allowed_uri_regexp)
-        return true if @config.allow_data_uri && decoded.match?(/^data:/i)
-        return true if decoded.match?(Expressions::IS_ALLOWED_URI)
 
-        return true if @config.allow_unknown_protocols && !decoded.match?(Expressions::IS_SCRIPT_OR_DATA)
+        # For URI attributes, check if it's allowed and has valid URI
+        uri_allowed =  attr_allowed.nil? || attr_allowed # default to allowed if not explicitly set
+        return true if uri_allowed && @config.allow_data_uri && decoded.match?(/^data:/i)
+        return true if uri_allowed && decoded.match?(Expressions::IS_ALLOWED_URI)
+        return true if uri_allowed && @config.allow_unknown_protocols && !decoded.match?(Expressions::IS_SCRIPT_OR_DATA)
 
-        return false # Reject invalid URIs
+        return false # Reject invalid URIs or non-allowed URI attributes
       end
 
-      # If we have an allowed list and passed all checks, it's valid
-      return true unless @config.allowed_attributes.nil?
+      # For non-URI attributes, return based on whether attribute is allowed
+      return attr_allowed if attr_allowed == true || attr_allowed == false
 
-      # Default permissive checks (when no allowed list is set)
+      # Default permissive checks (when no explicit allowed list is set)
       return true if @config.additional_attributes&.include?(attr_name)
       return true if @config.allow_data_attributes && attr_name.match?(Expressions::DATA_ATTR)
       return true if @config.allow_aria_attributes && attr_name.match?(Expressions::ARIA_ATTR)
 
+      # Final fallback - if allowed_attributes is nil, use default behavior
       if @config.allow_unknown_protocols && value && !value.match?(Expressions::IS_SCRIPT_OR_DATA)
         return false if value.match?(/^data:/i) && !@config.allow_data_uri
 

@@ -132,7 +132,8 @@ module Scrubber
 
       @allowed_attributes = []
       @allowed_attributes += Attributes::HTML if @use_profiles[:html]
-      @allowed_attributes += Attributes::HTML_EMAIL if @use_profiles[:html_email]
+      # For html_email profile, use per-tag attribute control instead of global allowlist
+      setup_html_email_per_tag_attributes if @use_profiles[:html_email]
       @allowed_attributes += Attributes::SVG + Attributes::XML if @use_profiles[:svg]
       @allowed_attributes += Attributes::SVG + Attributes::XML if @use_profiles[:svg_filters]
       return unless @use_profiles[:math_ml]
@@ -140,5 +141,85 @@ module Scrubber
       @allowed_attributes += Attributes::MATH_ML + Attributes::XML
     end
     # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+
+    # Sets up per-tag attribute restrictions for HTML email profile
+    #
+    # This provides fine-grained control over which attributes can appear on which tags,
+    # improving security by preventing attribute confusion attacks while maintaining
+    # full HTML email compatibility.
+    #
+    # @return [void]
+    def setup_html_email_per_tag_attributes
+      # Common attributes for most content elements
+      common_attrs = %w[align class id style dir lang title]
+
+      @allowed_attributes_per_tag = {
+        # Document structure
+        'body' => %w[bgcolor text link vlink alink background style class id],
+        'html' => %w[lang dir xmlns],
+        'head' => [],
+        'meta' => %w[name content charset],
+        'title' => [],
+        'style' => [],
+
+        # Table elements (core of email layouts)
+        'table' => %w[width height border cellpadding cellspacing align bgcolor background style class id role summary],
+        'thead' => common_attrs,
+        'tbody' => common_attrs,
+        'tfoot' => common_attrs,
+        'tr' => %w[height bgcolor valign align style class id],
+        'td' => %w[width height colspan rowspan align valign bgcolor background style class id headers scope],
+        'th' => %w[width height colspan rowspan align valign bgcolor background style class id headers scope],
+
+        # Legacy presentation elements
+        'font' => %w[face size color style],
+        'center' => common_attrs,
+
+        # Links and media
+        'a' => %w[href target title class id style name rel],
+        'img' => %w[src alt width height border align style class id],
+
+        # Headings
+        'h1' => common_attrs,
+        'h2' => common_attrs,
+        'h3' => common_attrs,
+        'h4' => common_attrs,
+        'h5' => common_attrs,
+        'h6' => common_attrs,
+
+        # Block elements
+        'p' => common_attrs,
+        'div' => common_attrs,
+        'span' => common_attrs,
+        'blockquote' => common_attrs + %w[cite],
+        'pre' => common_attrs,
+        'code' => common_attrs,
+
+        # Lists
+        'ul' => common_attrs + %w[type],
+        'ol' => common_attrs + %w[type start],
+        'li' => common_attrs + %w[value],
+
+        # Inline formatting
+        'strong' => common_attrs,
+        'em' => common_attrs,
+        'b' => common_attrs,
+        'i' => common_attrs,
+        'u' => common_attrs,
+        's' => common_attrs,
+        'strike' => common_attrs,
+        'sup' => common_attrs,
+        'sub' => common_attrs,
+        'small' => common_attrs,
+        'big' => common_attrs,
+        'mark' => common_attrs,
+        'del' => common_attrs + %w[cite datetime],
+        'ins' => common_attrs + %w[cite datetime],
+
+        # Empty elements
+        'br' => %w[class style],
+        'hr' => common_attrs + %w[width size noshade]
+      }
+    end
   end
 end

@@ -118,7 +118,9 @@ Scrubber.set_config(use_profiles: { html: true, svg: true })
 # SVG filters
 Scrubber.set_config(use_profiles: { svg_filters: true })
 
-# HTML Email support (allows head, meta, style, etc.)
+# HTML Email support (uses per-tag attribute restrictions for improved security)
+# Allows head, meta, style tags and email-specific attributes like bgcolor, cellpadding
+# Uses fine-grained per-tag control to prevent attribute confusion attacks
 Scrubber.set_config(use_profiles: { html_email: true })
 ```
 
