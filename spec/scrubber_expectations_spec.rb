@@ -10,7 +10,7 @@ EXPECTATIONS = Kernel.eval(File.read(path), binding, path)
 RSpec.describe 'Scrubber DOMPurify expectations' do
   EXPECTATIONS.each do |example|
     it example['title'] do
-      actual = Scrubber.new(use_profiles: [:purify]).sanitize(example['payload'])
+      actual = Scrubber.sanitize(example['payload'])
       expected = example['expected']
 
       if expected.is_a?(Array)
