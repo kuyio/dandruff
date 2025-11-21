@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.5.0] - 2025-11-21
 
 ### Added
 - Specs covering metadata tag stripping, data/file URI enforcement, obfuscated CSS payloads, expanded DOM clobbering identifiers, attribute hook execution, SVG/MathML hardening, mutation-XSS stabilization, and DOM clobbering canonical parity.
@@ -37,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Scrubber now uses instance-based configuration (`Scrubber.new(config)`) instead of module-level global state; the module-level `Scrubber.sanitize` is a convenience wrapper that builds a fresh instance per call.
 - `use_profiles=` now resets and reapplies profile-derived config, fixing block-style configuration for `html_email` (preserves document elements/attributes even with `return_dom`).
 - HTML email profile now forces full-document parsing and preserves legacy margin attributes and backgrounds on row/table elements to improve email fidelity.
+
+## [Unreleased]
 
 ## [0.4.0] - 2025-11-20
 

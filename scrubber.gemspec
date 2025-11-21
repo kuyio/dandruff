@@ -8,16 +8,15 @@ Gem::Specification.new do |spec|
   spec.name        = 'scrubber'
   spec.version     = Scrubber::VERSION
   spec.authors     = ['Scrubber Ruby Contributors']
-  spec.email       = ['contributors@example.com']
+  spec.email       = ['dev@kuy.io']
 
   spec.summary     = 'Scrubber – Ruby HTML sanitizer'
   spec.description = 'Scrubber is a Ruby HTML sanitizer providing robust XSS protection ' \
                      'with a clean, idiomatic configuration API.'
-  spec.homepage    = 'https://github.com/example/scrubber'
+  spec.homepage    = 'https://github.com/kuyio/scrubber'
   spec.license     = 'Apache-2.0'
   spec.required_ruby_version = '>= 2.7.0' # rubocop:disable Gemspec/RequiredRubyVersion
 
-  spec.metadata['homepage_uri']    = spec.homepage
   spec.metadata['source_code_uri'] = spec.homepage
   spec.metadata['changelog_uri']   = "#{spec.homepage}/blob/main/CHANGELOG.md"
 
