@@ -349,11 +349,33 @@ RSpec.describe Scrubber do
         described_class.clear_config
       end
 
+      it 'drops style element with data SVG payload when opt-in' do
+        dirty = '<style>body { background:url(data:image/svg+xml,<svg onload=alert(1)>) }</style><p>Ok</p>'
+        clean = described_class.sanitize(dirty, allow_style_tags: true)
+        expect(clean).not_to include('<style')
+        expect(clean).to include('<p>Ok</p>')
+        described_class.clear_config
+      end
+
       it 'removes obfuscated javascript in inline styles' do
         dirty = '<div style="background:url(\\6aavascript:alert(1))">Test</div>'
         clean = described_class.sanitize(dirty)
         expect(clean).not_to include('style=')
         expect(clean).not_to include('javascript')
+      end
+
+      it 'removes behavior/binding payloads in inline styles' do
+        dirty = '<div style="behavior:url(#default#time2); binding:url(http://evil)">Test</div>'
+        clean = described_class.sanitize(dirty)
+        expect(clean).not_to include('behavior')
+        expect(clean).not_to include('binding')
+      end
+
+      it 'blocks data SVG URLs in inline styles' do
+        dirty = '<div style="background:url(data:image/svg+xml,<svg onload=alert(1)>)">X</div>'
+        clean = described_class.sanitize(dirty)
+        expect(clean).not_to include('data:image/svg+xml')
+        expect(clean).not_to include('style=')
       end
     end
 

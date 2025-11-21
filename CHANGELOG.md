@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added SVG animateMotion/feImage data-URI blocking tests to harden remaining SVG vectors.
 - Annotation-XML now forbidden by default; added MathML coverage/tests for maction/annotation-xml and malicious MathML URIs.
 - Added mutation XSS stability test and baseProfile SVG trap coverage.
+- Inline style filtering hardened to catch behavior/binding directives and data SVG URLs; style opt-in drops blocks containing these payloads.
 
 ## [0.4.0] - 2025-11-20
 

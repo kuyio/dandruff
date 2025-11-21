@@ -350,6 +350,10 @@ module Scrubber
         normalized.include?('expression(') ||
         normalized.include?('@import') ||
         normalized.include?('data:text/html') ||
+        normalized.include?('data:image/svg+xml') ||
+        normalized.include?('data:svg+xml') ||
+        normalized.include?('behavior:') ||
+        normalized.include?('binding:') ||
         normalized.match?(%r{url\([^)]*data:}i)
     end
 
