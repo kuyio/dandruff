@@ -13,23 +13,74 @@ require_relative 'scrubber/utils'
 
 # Scrubber - A robust HTML sanitizer for Ruby
 #
-# Scrubber is a Ruby implementation of DOMPurify, providing comprehensive XSS protection
-# by sanitizing HTML strings and removing malicious payloads. It supports flexible
-# configuration, hooks for custom processing, and handles various content types including
-# HTML, SVG, and MathML.
+# Scrubber is a Ruby implementation inspired by DOMPurify, providing comprehensive XSS protection
+# by sanitizing HTML strings and removing malicious payloads. It's designed for excellent developer
+# experience while maintaining battle-tested security.
 #
-# @example Basic usage
+# ## Key Features
+#
+# - **Comprehensive XSS Protection**: Defends against XSS, mXSS, DOM clobbering, and protocol injection
+# - **Flexible Configuration**: Fine-grained control over tags, attributes, and sanitization behavior
+# - **Content Type Profiles**: Pre-configured settings for HTML, SVG, MathML, and HTML email
+# - **Hook System**: Extend sanitization with custom processing logic
+# - **Developer-Friendly API**: Intuitive Ruby idioms with block-based configuration
+# - **Battle-Tested Security**: Based on DOMPurify's proven security model
+# - **Performance Optimized**: Efficient multi-pass sanitization with configurable limits
+#
+# ## Quick Start
+#
+# @example Basic sanitization
 #   require 'scrubber'
-#   scrubber = Scrubber.new
-#   clean_html = scrubber.sanitize('<script>alert("xss")</script><p>Safe</p>')
 #
-# @example Configuration with block
+#   scrubber = Scrubber.new
+#   clean = scrubber.sanitize('<script>alert("xss")</script><p>Safe content</p>')
+#   # => "<p>Safe content</p>"
+#
+# @example Configure with block
 #   scrubber = Scrubber.new do |config|
-#     config.allowed_tags = ['p', 'b']
-#     config.allowed_attributes = ['class']
+#     config.allowed_tags = ['p', 'strong', 'em', 'a']
+#     config.allowed_attributes = ['href', 'title', 'class']
 #   end
 #
+# @example Use convenience class method
+#   clean = Scrubber.sanitize(dirty_html, allowed_tags: ['p', 'strong'])
+#
+# @example Profile-based configuration
+#   scrubber = Scrubber.new do |config|
+#     config.use_profiles = { html: true, svg: true }
+#   end
+#
+# @example Per-tag attribute control
+#   scrubber = Scrubber.new do |config|
+#     config.allowed_attributes_per_tag = {
+#       'a' => ['href', 'title'],
+#       'img' => ['src', 'alt', 'width', 'height']
+#     }
+#   end
+#
+# @example Custom hooks
+#   scrubber = Scrubber.new
+#   scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
+#     # Custom attribute processing
+#     if data[:attr_name] == 'data-safe'
+#       data[:keep_attr] = true
+#     end
+#   end
+#
+# ## Security
+#
+# Scrubber protects against multiple attack vectors:
+# - **XSS**: Removes script tags, event handlers, javascript: URIs
+# - **mXSS**: Multi-pass sanitization prevents mutation-based attacks
+# - **DOM Clobbering**: Blocks dangerous id/name attribute values
+# - **Protocol Injection**: Validates URI protocols (javascript:, vbscript:, data:text/html)
+# - **Namespace Confusion**: Prevents mXSS via SVG/MathML namespace attacks
+# - **CSS Injection**: Sanitizes inline styles and style tag content
+#
+# @see https://github.com/kuyio/scrubber GitHub repository
 # @see https://github.com/cure53/DOMPurify Original JavaScript implementation
+# @see Config Configuration options reference
+# @see Sanitizer Core sanitization engine
 module Scrubber
   class Error < StandardError; end
 

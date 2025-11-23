@@ -1,7 +1,40 @@
 # frozen_string_literal: true
 
 module Scrubber
+  # Attribute allowlists and security denylists for HTML sanitization
+  #
+  # This module defines comprehensive attribute allowlists for different content types
+  # (HTML, SVG, MathML) and security-focused denylists for dangerous attributes and
+  # DOM clobbering attack vectors. These lists are based on DOMPurify's battle-tested
+  # security model and web standards.
+  #
+  # @example Using attribute lists in configuration
+  #   scrubber.configure do |config|
+  #     config.allowed_attributes = Scrubber::Attributes::HTML
+  #   end
+  #
+  # @see Config Configuration class that uses these attribute lists
   module Attributes
+    # Standard HTML attribute allowlist
+    #
+    # Comprehensive list of safe HTML attributes for standard web content. These attributes
+    # cover forms, media, accessibility, styling, and interactive elements while excluding
+    # dangerous event handlers and script execution vectors.
+    #
+    # **Includes:** Layout and presentation (width, height, align, style, class, id),
+    # links (href, target), forms (type, name, value, placeholder), media (src, controls, poster),
+    # accessibility (alt, title, role, tabindex, lang), and HTML5 features (autocomplete, loading)
+    #
+    # **Excludes:** Event handlers (onclick, onload, onerror), javascript: URIs, and other XSS vectors
+    #
+    # **Security:** Safe for rich HTML content. All URI-like attributes (href, src) are validated
+    # separately to prevent javascript: and data:text/html attacks. Style attributes are parsed
+    # and sanitized to prevent CSS injection.
+    #
+    # @example Standard HTML content
+    #   scrubber.configure do |config|
+    #     config.allowed_attributes = Scrubber::Attributes::HTML
+    #   end
     HTML = %w[
       accept action align alt autocapitalize autocomplete autopictureinpicture autoplay
       background bgcolor border capture cellpadding cellspacing checked cite class clear
@@ -17,6 +50,24 @@ module Scrubber
       title translate type usemap valign value width wrap xmlns
     ].freeze
 
+    # SVG attribute allowlist
+    #
+    # Comprehensive list of attributes for SVG (Scalable Vector Graphics) elements.
+    # Includes presentation attributes, animation attributes, filter attributes, and
+    # transformation attributes needed for full SVG functionality.
+    #
+    # **Includes:** Geometric properties (x, y, cx, cy, width, height, r, rx, ry),
+    # styling (fill, stroke, opacity, color), transformations (transform, rotate, scale),
+    # gradients (gradienttransform, spreadmethod), filters (fe* attributes), and
+    # text rendering (font-*, text-*)
+    #
+    # **Security:** Safe for SVG rendering when combined with tag validation. Prevents
+    # mXSS attacks through proper namespace handling and attribute validation.
+    #
+    # @example SVG graphics
+    #   scrubber.configure do |config|
+    #     config.use_profiles = { svg: true }  # Includes SVG attributes
+    #   end
     SVG = %w[
       accent-height accumulate additive alignment-baseline amplitude ascent attributename
       attributetype azimuth basefrequency baseline-shift begin bias by class clip
@@ -44,6 +95,22 @@ module Scrubber
       zoomandpan
     ].freeze
 
+    # MathML attribute allowlist
+    #
+    # Comprehensive list of attributes for MathML (Mathematical Markup Language) elements.
+    # Includes attributes for mathematical notation, spacing, alignment, and styling.
+    #
+    # **Includes:** Spacing and alignment (lspace, rspace, linethickness, rowspacing),
+    # sizing (mathsize, minsize, maxsize), styling (mathcolor, mathbackground),
+    # notation (notation, accent, fence), and structural (displaystyle, scriptlevel)
+    #
+    # **Security:** Safe for mathematical notation when properly namespaced. Prevents
+    # MathML-based mXSS attacks through namespace validation.
+    #
+    # @example Mathematical formulas
+    #   scrubber.configure do |config|
+    #     config.use_profiles = { math_ml: true }  # Includes MathML attributes
+    #   end
     MATH_ML = %w[
       accent accentunder align bevelled close columnsalign columnlines colspan denomalign
       depth dir display displaystyle encoding fence frame height href id largeop length
@@ -54,16 +121,62 @@ module Scrubber
       voffset width xmlns
     ].freeze
 
+    # XML namespace attributes
+    #
+    # Attributes used for XML namespace declarations and XLink href references.
+    # Required for proper SVG linking and namespace handling.
+    #
+    # **Includes:** xlink:href, xml:id, xlink:title, xml:space, xmlns:xlink, xmlns
+    #
+    # **Security:** Namespace attributes are validated to prevent namespace confusion
+    # attacks. xmlns: prefixed attributes are carefully checked to prevent injection.
+    #
+    # @api private
     XML = %w[
       xlink:href xml:id xlink:title xml:space xmlns:xlink xmlns
     ].freeze
 
-    # Attributes allowed in HTML emails (includes legacy attributes)
+    # HTML Email attribute allowlist (includes legacy presentation attributes)
+    #
+    # Extended attribute list for HTML email rendering. Includes legacy presentational
+    # attributes required by email clients like bgcolor, align, valign, cellpadding, etc.
+    #
+    # **Includes:** HTML attributes + legacy table attributes (cellpadding, cellspacing,
+    # bgcolor, valign), font attributes (face, size, color), layout attributes
+    # (leftmargin, topmargin, marginwidth, marginheight), and meta attributes (content)
+    #
+    # **Security:** Designed for sandboxed email contexts. All attributes are still
+    # validated for XSS vectors. Use with html_email profile for per-tag restrictions.
+    #
+    # **Note:** Email clients vary widely - test thoroughly across clients.
+    #
+    # @example Email sanitization
+    #   scrubber.configure do |config|
+    #     config.use_profiles = { html_email: true }
+    #   end
     HTML_EMAIL = (HTML + %w[
       target bgcolor text link vlink alink background border cellpadding cellspacing
       width height align valign face size color content leftmargin topmargin marginwidth marginheight
     ]).freeze
 
+    # Dangerous event handler and script protocol patterns
+    #
+    # List of dangerous attribute patterns that enable script execution. These are
+    # ALWAYS blocked regardless of configuration to prevent XSS attacks.
+    #
+    # **Includes:**
+    # - Event handlers: onclick, onload, onerror, onmouseover, onfocus, etc.
+    # - URI protocols: javascript:, vbscript:, data:text/html
+    #
+    # **Security:** This is a security-critical denylist. These patterns enable direct
+    # script execution and are blocked even if explicitly allowed elsewhere.
+    #
+    # @example Blocked patterns
+    #   # <a onclick="alert(1)">  - onclick blocked
+    #   # <img src="javascript:alert(1)">  - javascript: blocked
+    #   # <link href="vbscript:msgbox(1)">  - vbscript: blocked
+    #
+    # @api private
     DANGEROUS = %w[
       onclick ondblclick onmousedown onmouseup onmouseover onmousemove
       onmouseout onkeypress onkeydown onkeyup onload onunload onabort
@@ -72,6 +185,32 @@ module Scrubber
       javascript: vbscript: data:text/html
     ].freeze
 
+    # DOM clobbering attack attribute values
+    #
+    # List of dangerous id/name attribute values that can be used for DOM clobbering
+    # attacks. These values would allow attackers to override built-in DOM properties
+    # and methods, potentially bypassing security checks.
+    #
+    # **Includes:** Browser object properties (window, document, location, alert),
+    # DOM properties (innerHTML, outerHTML, attributes, children), prototype chain
+    # (__proto__, constructor, prototype), and critical methods (getElementById,
+    # createElement, setAttribute, etc.)
+    #
+    # **Security:** When `sanitize_dom: true` (default), these values are blocked in
+    # id and name attributes to prevent DOM clobbering. Can be disabled for email
+    # rendering where DOM clobbering is less critical.
+    #
+    # **Background:** DOM clobbering occurs when HTML attributes like id/name override
+    # built-in browser objects, e.g., `<img id="document">` makes `document` refer to
+    # the image instead of the DOM document object.
+    #
+    # @example Prevented attacks
+    #   # <form name="document">  - blocked, would clobber window.document
+    #   # <img id="location">     - blocked, would clobber window.location
+    #   # <div id="alert">        - blocked, would clobber window.alert
+    #
+    # @see Config#sanitize_dom Configuration option to enable/disable DOM clobbering protection
+    # @api private
     DOM_CLOBBERING = %w[
       __proto__ __parent__ constructor prototype contentwindow contentdocument parentnode ownerdocument location
       attributes nodevalue innerhtml outerhtml localname documenturi srcdoc url

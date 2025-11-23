@@ -1,824 +1,1219 @@
 # Scrubber
 
-[![Gem Version](https://badge.fury.io/rb/scrubber.svg)](https://badge.fury.io/rb/scrubber)
-[![Build Status](https://github.com/kuyio/scrubber/workflows/CI/badge.svg)](https://github.com/kuyio/scrubber/actions)
+**A robust Ruby HTML sanitizer providing comprehensive XSS protection with an idiomatic, developer-friendly API.**
 
-A robust Ruby HTML sanitizer providing comprehensive XSS protection with an idiomatic, developer-friendly API. Built on the battle-tested security foundations of [DOMPurify](https://github.com/cure53/DOMPurify).
+Scrubber is built on the battle-tested security foundations of [DOMPurify](https://github.com/cure53/DOMPurify), bringing proven XSS defense to the Ruby ecosystem. Whether you're sanitizing user comments, rendering rich content, or processing HTML emails, Scrubber provides the security and flexibility you need.
 
-## Table of Contents
+## ✨ Key Features
 
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Configuration](#configuration)
-  - [Basic Configuration](#basic-configuration)
-  - [Tag Control](#tag-control)
-  - [Attribute Control](#attribute-control)
-  - [URI & Protocol Control](#uri--protocol-control)
-  - [Output Control](#output-control)
-  - [Content Control](#content-control)
-  - [Special Features](#special-features)
-- [Advanced Features](#advanced-features)
-  - [Profiles](#profiles)
-  - [Hooks](#hooks)
-- [Security](#security)
-  - [Recommended Configurations](#recommended-configurations)
-  - [Security Best Practices](#security-best-practices)
-- [API Reference](#api-reference)
-- [Performance](#performance)
-- [Compared to other sanitization libraries](#compared-to)
-- [Development](#development)
-- [Contributing](#contributing)
-- [License](#license)
+- 🛡️ **Comprehensive XSS Protection** - Defends against XSS, mXSS, DOM clobbering, and protocol injection
+- ⚙️ **Flexible Configuration** - Fine-grained control over tags, attributes, and sanitization behavior  
+- 📦 **Content Type Profiles** - Pre-configured settings for HTML, SVG, MathML, and HTML email
+- 🎣 **Hook System** - Extend sanitization with custom processing logic
+- 💎 **Developer-Friendly API** - Intuitive Ruby idioms with block-based configuration
+- ⚡ **Performance Optimized** - Efficient multi-pass sanitization with configurable limits
+- 🔒 **Battle-Tested** - Based on DOMPurify's proven security model
 
-## Installation
+## 🚀 Quickstart
 
-Add this line to your application's Gemfile:
+Get up and running in 60 seconds:
+
+```ruby
+# 1. Add scrubber to your Gemfile
+gem 'scrubber', github: 'kuyio/scrubber'
+
+# 2. Run bundle install
+bundle install
+
+# 3. Sanitize HTML with default configuration
+scrubber = Scrubber.new
+clean_html = scrubber.sanitize('<script>alert("xss")</script><p>Safe content</p>')
+# => "<p>Safe content</p>"
+
+# 4. Configure for your use case
+scrubber = Scrubber.new do |config|
+  config.allowed_tags = ['p', 'strong', 'em', 'a']
+  config.allowed_attributes = ['href', 'class']
+end
+
+# 5. Sanitize an input string
+scrubber.sanitize('<p class="intro"><strong>Hello</strong> <a href="/about">world</a>!</p>')
+# => '<p class="intro"><strong>Hello</strong> <a href="/about">world</a>!</p>'
+```
+
+**That's it!** You're now protecting your application from XSS attacks. Read on to learn more about configuration and advanced usage.
+
+## 📦 Installation
+
+### Using Bundler (Recommended)
+
+Add to your `Gemfile`:
 
 ```ruby
 gem 'scrubber'
 ```
 
-And then execute:
+Then run:
 
 ```bash
-$ bundle install
+bundle install
 ```
 
-Or install it yourself:
+### Direct Installation
 
 ```bash
-$ gem install scrubber
+gem install scrubber
 ```
 
-## Quick Start
+### Requirements
+
+- **Ruby**: 2.7 or higher
+- **Nokogiri**: 1.12 or higher (automatically installed)
+
+## ⚙️ Configuration
+
+Scrubber offers three ways to configure sanitization: block-based, direct configuration, and per-call options.
+
+### Configuration Styles
 
 ```ruby
-require 'scrubber'
-
-# Preferred: create a configured instance
-scrubber = Scrubber.new
-
-# Basic sanitization - removes XSS attacks
-dirty_html = '<script>alert("xss")</script><p>Safe content</p>'
-clean_html = scrubber.sanitize(dirty_html)
-# => "<p>Safe content</p>"
-
-# Configure for your use case
-scrubber = Scrubber.new do |config|
-  config.allowed_tags = ['p', 'strong', 'em', 'a']
-  config.allowed_attributes = ['href', 'title', 'class']
-end
-
-# Now sanitize with your custom rules
-html = '<p class="intro"><strong>Important:</strong> <a href="/about">Learn more</a></p>'
-clean = scrubber.sanitize(html)
-# => '<p class="intro"><strong>Important:</strong> <a href="/about">Learn more</a></p>'
-
-# Convenience: Scrubber.sanitize(html) will build a fresh instance with default config
-```
-
-## Configuration
-
-Scrubber offers flexible configuration through a block-based API or direct method calls. All configuration options use `snake_case` naming for Ruby idiomatics. Unless noted, the snippets below assume you have an instance named `scrubber` (e.g., `scrubber = Scrubber.new`).
-
-### Basic Configuration
-
-```ruby
-# Block-based configuration (recommended)
+# 1. Block-based configuration (recommended for instances)
 scrubber = Scrubber.new do |config|
   config.allowed_tags = ['p', 'strong', 'em']
   config.allowed_attributes = ['class', 'href']
 end
 
-# Direct configuration on an existing instance
+# 2. Direct configuration  
 scrubber = Scrubber.new
 scrubber.set_config(
-  allowed_tags: ['p', 'strong', 'em'],
-  allowed_attributes: ['class', 'href']
-)
-
-# Per-call configuration
-clean = scrubber.sanitize(dirty_html,
   allowed_tags: ['p', 'strong'],
   allowed_attributes: ['class']
 )
+
+# 3. Per-call configuration
+scrubber = Scrubber.new
+scrubber.sanitize(html, allowed_tags: ['p'], allowed_attributes: ['class'])
+
+# 4. Class method with configuration
+clean = Scrubber.sanitize(html, allowed_tags: ['p', 'strong'])
 ```
 
-### Profiles
+### Common Configuration Patterns
 
-Use predefined profiles for common content types:
-
-```ruby
-# HTML content
-scrubber.set_config(use_profiles: { html: true })
-
-# SVG support
-scrubber.set_config(use_profiles: { svg: true })
-
-# MathML for mathematical content
-scrubber.set_config(use_profiles: { math_ml: true })
-
-# Multiple profiles
-scrubber.set_config(use_profiles: { html: true, svg: true })
-
-# SVG filters
-scrubber.set_config(use_profiles: { svg_filters: true })
-
-# HTML Email support (uses per-tag attribute restrictions for improved security)
-# Allows head, meta, style tags and email-specific attributes like bgcolor, cellpadding
-# Uses fine-grained per-tag control to prevent attribute confusion attacks
-scrubber.set_config(use_profiles: { html_email: true })
-```
-
-### Controlling which HTML Tags are allowed
-
-Scrubber given you fine-grained control over which HTML tags are allowed in sanitized output. You can you use the following config options to allow or deny specific tags.
-
-#### `allowed_tags`
-**Type:** `Array<String>` | **Default:** Comprehensive list of safe HTML tags (see default allow lists below)
-
-Specify exactly which tags to allow. When set, **only these tags** will be permitted:
+#### Restrict to specific tags and attributes
 
 ```ruby
-scrubber.configure do |config|
-  config.allowed_tags = ['p', 'strong', 'em', 'a', 'ul', 'li']
-  # Only these 6 tags will be allowed
+scrubber = Scrubber.new do |config|
+  config.allowed_tags = ['p', 'strong', 'em', 'a']
+  config.allowed_attributes = ['href', 'title']
 end
 ```
 
-#### `forbidden_tags`
-**Type:** `Array<String>` | **Default:** `[]`
-
-Tags that are always removed, even if in `allowed_tags`:
+#### Extend defaults instead of replacing
 
 ```ruby
-scrubber.configure do |config|
-  config.forbidden_tags = ['script', 'iframe', 'object']
+scrubber = Scrubber.new do |config|
+  config.additional_tags = ['custom-element']
+  config.additional_attributes = ['data-custom-id']
 end
 ```
 
-#### `additional_tags`
-**Type:** `Array<String>` | **Default:** `[]`
-
-Additional tags to allow **beyond the defaults**. Use this to extend the default safe tag list:
+#### Block specific tags or attributes
 
 ```ruby
-scrubber.configure do |config|
-  config.additional_tags = ['custom-element', 'web-component']
-  # Allows all default tags PLUS these custom ones
-end
-```
----
-
-### Controlling which Attributes are allowed
-
-In addition to controlling the allowed set of HTML attributes, Scrubber also let's you specify which attributes are allowed in those tags.
-
-#### `allowed_attributes`
-**Type:** `Array<String>` | **Default:** Safe attributes like `href`, `title`, `class`
-
-Specify exactly which attributes to allow. When set, **only these attributes** will be permitted:
-
-```ruby
-scrubber.configure do |config|
-  config.allowed_attributes = ['href', 'title', 'class', 'id']
-  # Only these 4 attributes will be allowed on any tag
+scrubber = Scrubber.new do |config|
+  config.forbidden_tags = ['script', 'iframe']
+  config.forbidden_attributes = ['onclick', 'onerror']
 end
 ```
 
-#### `forbidden_attributes`
-**Type:** `Array<String>` | **Default:** `[]`
+→ See [Configuration Reference](#configuration-reference) for all available options.
 
-Attributes that are always removed:
+## 📖 Usage
+
+### Simple Use Cases
+
+#### Sanitize User Comments
 
 ```ruby
-scrubber.configure do |config|
-  config.forbidden_attributes = ['onclick', 'onerror', 'onload']
+# Basic text formatting only
+scrubber = Scrubber.new do |config|
+  config.allowed_tags = ['p', 'br', 'strong', 'em', 'a']
+  config.allowed_attributes = ['href']
+  config.forbidden_attributes = ['onclick', 'onerror']
+end
+
+comment = params[:comment]
+safe_comment = scrubber.sanitize(comment)
+```
+
+#### Sanitize Markdown-Generated HTML
+
+```ruby
+# Allow rich formatting from Markdown
+scrubber = Scrubber.new do |config|
+  config.allowed_tags = [
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'p', 'br', 'strong', 'em', 'code', 'pre',
+    'ul', 'ol', 'li', 'blockquote', 'a'
+  ]
+  config.allowed_attributes = ['href', 'title']
+end
+
+html = markdown_renderer.render(params[:content])
+safe_html = scrubber.sanitize(html)
+```
+
+#### Sanitize Blog Post Content
+
+```ruby
+# Rich content with images
+scrubber = Scrubber.new do |config|
+  config.allowed_tags = [
+    'p', 'br', 'strong', 'em', 'ul', 'ol', 'li',
+    'h2', 'h3', 'blockquote', 'code', 'pre',
+    'a', 'img'
+  ]
+  config.allowed_attributes = ['href', 'title', 'src', 'alt', 'class']
+  config.allow_data_uri = false  # Block data URIs for images
+end
+
+post_html = params[:post][:content]
+safe_html = scrubber.sanitize(post_html)
+```
+
+### Intermediate Use Cases
+
+#### Using Profiles for Content Types
+
+Profiles are pre-configured sets of tags and attributes for common content types:
+
+```ruby
+# HTML content profile
+scrubber = Scrubber.new do |config|
+  config.use_profiles = { html: true }
+end
+
+# SVG graphics
+scrubber = Scrubber.new do |config|
+  config.use_profiles = { html: true, svg: true }
+end
+
+# Mathematical content  
+scrubber = Scrubber.new do |config|
+  config.use_profiles = { html: true, math_ml: true }
+end
+
+# Combine multiple profiles
+scrubber = Scrubber.new do |config|
+  config.use_profiles = { html: true, svg: true, math_ml: true }
 end
 ```
 
-#### `additional_attributes`
-**Type:** `Array<String>` | **Default:** `[]`
+#### HTML Email Sanitization
 
-Additional attributes to allow **beyond the defaults**. Use this to extend the default safe attribute list:
+HTML emails require special handling with legacy attributes:
 
 ```ruby
-scrubber.configure do |config|
-  config.additional_attributes = ['data-toggle', 'aria-label']
-  # Allows all default attributes PLUS these custom ones
+scrubber = Scrubber.new do |config|
+  config.use_profiles = { html_email: true }
 end
+
+email_html = message.html_part.body.to_s
+safe_email = scrubber.sanitize(email_html)
 ```
 
-#### `additional_uri_safe_attributes`
-**Type:** `Array<String>` | **Default:** `[]`
+The `html_email` profile:
+- Allows document structure tags (`head`, `meta`, `style`)
+- Permits legacy presentation attributes (`bgcolor`, `cellpadding`, `align`, etc.)
+- Uses per-tag attribute restrictions for security
+- Allows style tags with content sanitization
+- Excludes form elements and scripts
 
-Attributes that can contain URIs and should be validated:
+#### Per-Tag Attribute Control
 
-```ruby
-scrubber.configure do |config|
-  config.additional_uri_safe_attributes = ['poster', 'srcset']
-end
-```
-
-#### `allowed_attributes_per_tag`
-**Type:** `Hash<String, Array<String>>` | **Default:** `nil`
-
-Specify which attributes are allowed on specific HTML tags. This provides fine-grained control beyond global attribute allow/deny lists. When configured, per-tag rules take precedence over global `allowed_attributes` for the specified tags.
-
-**Format:** `{ 'tag_name' => ['attr1', 'attr2', ...] }`
+Restrict which attributes are allowed on specific tags for maximum security:
 
 ```ruby
-scrubber.configure do |config|
+scrubber = Scrubber.new do |config|
   config.allowed_attributes_per_tag = {
     'a' => ['href', 'title', 'target'],
     'img' => ['src', 'alt', 'width', 'height'],
+    'table' => ['border', 'cellpadding', 'cellspacing'],
     'td' => ['colspan', 'rowspan'],
     'th' => ['colspan', 'rowspan', 'scope']
   }
 end
 
-# Now only specified attributes are allowed on each tag
+# Only specified attributes allowed on each tag
 html = '<a href="/page" onclick="alert()">Link</a>'
 scrubber.sanitize(html)
-# => '<a href="/page">Link</a>' (onclick removed, href kept)
+# => '<a href="/page">Link</a>' (onclick removed)
 
 html = '<img src="pic.jpg" href="/bad">'
 scrubber.sanitize(html)
-# => '<img src="pic.jpg">' (href removed from img tag)
+# => '<img src="pic.jpg">' (href removed from img)
 ```
 
-**Security use case:**
+**Security benefit:** Prevents attribute confusion attacks where dangerous attributes appear on unexpected elements.
+
+### Complex Use Cases
+
+#### Custom URI Validation
 
 ```ruby
-# Restrict link targets and prevent attribute confusion attacks
-scrubber.configure do |config|
-  config.allowed_attributes_per_tag = {
-    'a' => ['href', 'title'],           # No target attribute
-    'img' => ['src', 'alt'],            # No href on images
-    'form' => ['action', 'method'],     # Only form-specific attrs
-    'input' => ['type', 'name', 'value'] # No onclick, etc.
-  }
+# Only allow HTTPS URLs from your domain
+scrubber = Scrubber.new do |config|
+  config.allowed_uri_regexp = /^https:\/\/(www\.)?example\.com\//
 end
+
+html = '<a href="https://example.com/safe">OK</a><a href="http://evil.com">Bad</a>'
+scrubber.sanitize(html)  
+# => '<a href="https://example.com/safe">OK</a><a>Bad</a>'
 ```
 
-**Interaction with global settings:**
-- `forbidden_attributes` always takes precedence (attributes are removed even if in per-tag list)
-- If a tag has per-tag rules, those rules are used instead of `allowed_attributes` for that tag
-- Tags without per-tag rules fall back to global `allowed_attributes` behavior
-- `additional_attributes` is ignored for tags with per-tag rules
+#### Hook-Based Customization
+
+Hooks allow you to extend Scrubber's behavior:
 
 ```ruby
-scrubber.configure do |config|
-  config.allowed_attributes_per_tag = {
-    'a' => ['href', 'onclick']  # onclick specified here
-  }
-  config.forbidden_attributes = ['onclick']  # But forbidden globally
+scrubber = Scrubber.new
+
+# Custom attribute handling
+scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
+  tag_name = data[:tag_name]
+  attr_name = data[:attr_name]
+  
+  # Allow specific custom data attributes
+  if attr_name.start_with?('data-safe-')
+    data[:keep_attr] = true
+  end
+  
+  # Force lowercase on certain attributes  
+  if attr_name == 'id'
+    node[attr_name] = node[attr_name].downcase
+  end
 end
 
-html = '<a href="/page" onclick="alert()">Link</a>'
+# Element processing
+scrubber.add_hook(:upon_sanitize_element) do |node, data, config|
+  # Log removed elements
+  puts "Processing #{data[:tag_name]} element"
+end
+
+html = '<div data-safe-user-id="123" DATA-KEY="ABC" id="MyID">Content</div>'
 scrubber.sanitize(html)
-# => '<a href="/page">Link</a>' (onclick removed by forbidden_attributes)
+# => '<div data-safe-user-id="123" id="myid">Content</div>'
 ```
 
+Available hooks:
+- `:before_sanitize_elements` - Before processing elements
+- `:after_sanitize_elements` - After processing elements
+- `:before_sanitize_attributes` - Before processing attributes on an element
+- `:after_sanitize_attributes` - After processing attributes on an element
+- `:upon_sanitize_element` - When processing each element
+- `:upon_sanitize_attribute` - When processing each attribute
 
----
-### Allowed vs Additional
-When deciding between `allowed_` and `additional_` use the following guiding principles:
-- Use `allowed_tags`/`allowed_attributes` to specify an **exact whitelist** (restrictive)
-- Use `additional_tags`/`additional_attributes` to **extend** the default safe lists (permissive)
-- `forbidden_*` always takes precedence and removes tags/attributes regardless of other settings
+#### Template Safety
 
----
-
-### URI & Protocol Control
-
-Scrubber let's you control separately how URIs and protocols are handled.
-
-#### `allow_data_uri`
-**Type:** `Boolean` | **Default:** `false`
-
-Allow `data:` URIs in attributes:
+Remove template expressions when sanitizing user-submitted content:
 
 ```ruby
-scrubber.configure do |config|
-  config.allow_data_uri = true
+scrubber = Scrubber.new do |config|
+  config.safe_for_templates = true
 end
 
-# Now this works
-scrubber.sanitize('<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...">')
+html = '<div>{{user.name}} - <%= admin_link %> - ${secret}</div>'
+scrubber.sanitize(html)
+# => '<div>   -    -  </div>' (template expressions removed)
 ```
 
-#### `allowed_uri_regexp`
-**Type:** `Regexp` | **Default:** Allows common safe protocols
+Removes:
+- Mustache/Handlebars: `{{ }}`
+- ERB: `<% %>`, `<%= %>`  
+- Template literals: `${ }`
 
-Customize allowed URI patterns:
+#### Multi-Pass Sanitization
+
+Protect against mutation-based XSS (mXSS):
 
 ```ruby
-scrubber.configure do |config|
-  # Only allow HTTPS and relative URLs
-  config.allowed_uri_regexp = /^(?:https?:|\/[^\/])/
+scrubber = Scrubber.new do |config|
+  config.sanitize_until_stable = true  # default
+  config.mutation_max_passes = 2       # default
 end
+
+# Scrubber will re-sanitize until output is stable
+# or max passes reached, preventing mXSS attacks
 ```
 
-### Controlling the Format and Structure of the Output
+#### Return DOM Instead of String
 
-Use the following configuration options to control the format and structure of sanitized output.
-
-#### `return_dom`
-**Type:** `Boolean` | **Default:** `false`
-
-Return a Nokogiri document instead of HTML string:
+For further processing with Nokogiri:
 
 ```ruby
-scrubber.configure do |config|
+scrubber = Scrubber.new do |config|
   config.return_dom = true
 end
 
 doc = scrubber.sanitize(html)
-puts doc.class  # Nokogiri::HTML::Document
-```
+# => Nokogiri::HTML::Document
 
-#### `return_dom_fragment`
-**Type:** `Boolean` | **Default:** `false`
-
-Return a Nokogiri document fragment:
-
-```ruby
-scrubber.configure do |config|
+# Or return a fragment
+scrubber = Scrubber.new do |config|
   config.return_dom_fragment = true
 end
 
 fragment = scrubber.sanitize(html)
-puts fragment.class  # Nokogiri::HTML::DocumentFragment
+# => Nokogiri::HTML::DocumentFragment
 ```
 
-#### `whole_document`
-**Type:** `Boolean` | **Default:** `false`
+## 📚 Reference
 
-Treat input as complete HTML document:
+### Configuration Reference
 
+Complete list of configuration options with defaults and security implications:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `allowed_tags` | `Array<String>` | `nil` (use defaults) | Exact allowlist of elements. When set, only these tags pass. |
+| `additional_tags` | `Array<String>` | `[]` | Extends default safe set. |
+| `forbidden_tags` | `Array<String>` | `['base','link','meta','annotation-xml','noscript']` | Always removed even if allowed elsewhere. |
+| `allowed_attributes` | `Array<String>` | `nil` (use defaults) | Exact allowlist of attributes. |
+| `allowed_attributes_per_tag` | `Hash<String, Array<String>>` | `nil` | Per-tag attribute restrictions. Takes precedence over `allowed_attributes`. |
+| `additional_attributes` | `Array<String>` | `[]` | Extends default safe attributes. |
+| `forbidden_attributes` | `Array<String>` | `nil` | Attributes always removed. |
+| `allow_data_attributes` | `Boolean` | `true` | Controls `data-*` attributes. |
+| `allow_aria_attributes` | `Boolean` | `true` | Controls `aria-*` attributes for accessibility. |
+| `allow_data_uri` | `Boolean` | `true` | Blocks `data:` URIs by default for safety. |
+| `allow_unknown_protocols` | `Boolean` | `false` | If true, permits non-standard schemes (⚠️ security risk). |
+| `allowed_uri_regexp` | `Regexp` | `nil` | Custom regexp to validate URI attributes. |
+| `additional_uri_safe_attributes` | `Array<String>` | `[]` | Extra attributes treated as URI-like. |
+| `allow_style_tags` | `Boolean` | `true` | `<style>` tags with content scanning. |
+| `sanitize_dom` | `Boolean` | `true` | Removes DOM clobbering `id`/`name` values. |
+| `safe_for_templates` | `Boolean` | `false` | Strips template expressions (`{{ }}`, `<%= %>`, `${ }`). |
+| `safe_for_xml` | `Boolean` | `true` | Removes comments/PI in XML-ish content. |
+| `whole_document` | `Boolean` | `false` | Parse as full document instead of fragment. |
+| `allow_document_elements` | `Boolean` | `false` | Retain `html/head/body` tags. |
+| `minimal_profile` | `Boolean` | `false` | Use smaller HTML-only allowlist (no SVG/MathML). |
+| `force_body` | `Boolean` | `false` | Forces body context when parsing fragments. |
+| `return_dom` | `Boolean` | `false` | Return Nokogiri DOM instead of string. |
+| `return_dom_fragment` | `Boolean` | `false` | Return Nokogiri fragment instead of string. |
+| `sanitize_until_stable` | `Boolean` | `true` | Re-sanitize until stable to mitigate mXSS. |
+| `mutation_max_passes` | `Integer` | `2` | Max passes for stabilization. Higher = more secure, slower. |
+| `keep_content` | `Boolean` | `true` | If false, removes contents of stripped elements. |
+| `in_place` | `Boolean` | `false` | Attempts to sanitize in place (experimental). |
+| `use_profiles` | `Hash` | `{}` | Enable content type profiles: `:html`, `:svg`, `:svg_filters`, `:math_ml`, `:html_email`. |
+| `namespace` | `String` | `'http://www.w3.org/1999/xhtml'` | Namespace for XHTML handling. |
+| `parser_media_type` | `String` | `'text/html'` | Parser media type; set to `application/xhtml+xml` for XHTML. |
+
+### API Reference
+
+#### Core Methods
+
+##### `Scrubber.new(config = nil, &block)` → `Sanitizer`
+
+Creates a new Scrubber instance.
+
+**Parameters:**
+- `config` (Hash, Config) - Optional configuration hash or Config object
+- `block` - Optional block for configuration
+
+**Returns:** Sanitizer instance
+
+**Example:**
 ```ruby
-scrubber.configure do |config|
-  config.whole_document = true
+scrubber = Scrubber.new do |config|
+  config.allowed_tags = ['p', 'strong']
 end
-
-scrubber.sanitize('<html><body><p>Content</p></body></html>')
 ```
 
-### Content Control
+##### `scrubber.sanitize(dirty_html, config = {})` → `String` or `Nokogiri::XML::Document`
 
-#### `keep_content`
-**Type:** `Boolean` | **Default:** `true`
+Sanitizes HTML string or Nokogiri node.
 
-Whether to preserve text content from removed tags:
+**Parameters:**
+- `dirty_html` (String, Nokogiri::XML::Node) - Input to sanitize
+- `config` (Hash) - Optional configuration override
+
+**Returns:** Sanitized HTML string or Nokogiri document (based on config)
+
+**Example:**
+```ruby
+clean = scrubber.sanitize('<script>xss</script><p>Safe</p>')
+# => "<p>Safe</p>"
+```
+
+##### `Scrubber.sanitize(dirty_html, config = {})` → `String`
+
+Class method for one-off sanitization.
+
+**Parameters:**
+- `dirty_html` (String) - Input to sanitize  
+- `config` (Hash) - Configuration options
+
+**Returns:** Sanitized HTML string
+
+**Example:**
+```ruby
+clean = Scrubber.sanitize(html, allowed_tags: ['p'])
+```
+
+#### Configuration Methods
+
+##### `scrubber.configure { |config| ... }` → `Sanitizer`
+
+Configures the scrubber instance using a block.
+
+**Example:**
+```ruby
+scrubber.configure do |config|
+  config.allowed_tags = ['p', 'strong']
+end
+```
+
+##### `scrubber.set_config(config_hash)` → `Config`
+
+Sets configuration directly with a hash.
+
+**Example:**
+```ruby
+scrubber.set_config(allowed_tags: ['p'], allowed_attributes: ['class'])
+```
+
+##### `scrubber.clear_config` → `Config`
+
+Resets to default configuration.
+
+#### Hook Methods
+
+##### `scrubber.add_hook(entry_point, &block)` → `void`
+
+Adds a hook function.
+
+**Parameters:**
+- `entry_point` (Symbol) - Hook name (`:before_sanitize_elements`, `:upon_sanitize_attribute`, etc.)
+- `block` (Proc) - Hook function receiving `(node, data, config)`
+
+**Example:**
+```ruby
+scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
+  data[:keep_attr] = true if data[:attr_name] == 'data-safe'
+end
+```
+
+##### `scrubber.remove_hook(entry_point, hook_function = nil)` → `Proc` or `nil`
+
+Removes specific hook or last hook for an entry point.
+
+##### `scrubber.remove_all_hooks` → `Hash`
+
+Removes all hooks.
+
+#### Utility Methods
+
+##### `scrubber.supported?` → `Boolean`
+
+Checks if required dependencies (Nokogiri) are available.
+
+##### `scrubber.removed` → `Array`
+
+Gets list of elements/attributes removed during last sanitization.
+
+**Returns:** Array of removal records
+
+### Profiles Reference
+
+#### HTML Profile
+
+**Enable:** `use_profiles: { html: true }`
+
+**Includes:** All standard HTML5 semantic elements, media elements, form controls, and text formatting.
+
+**Use for:** Standard web content, blog posts, documentation
 
 ```ruby
-# With keep_content: true (default)
-scrubber.sanitize('<script>alert("xss")</script>safe text')
-# => "safe text"
-
-# With keep_content: false
-scrubber.configure do |config|
-  config.keep_content = false
+scrubber = Scrubber.new do |config|
+  config.use_profiles = { html: true }
 end
-scrubber.sanitize('<script>alert("xss")</script>safe text')
+```
+
+#### SVG Profile
+
+**Enable:** `use_profiles: { svg: true }`
+
+**Includes:** SVG elements for vector graphics (shapes, paths, gradients, basic filters)
+
+**Use for:** Inline SVG graphics, icons, diagrams
+
+```ruby
+scrubber = Scrubber.new do |config|
+  config.use_profiles = { html: true, svg: true }
+end
+```
+
+#### SVG Filters Profile
+
+**Enable:** `use_profiles: { svg_filters: true }`
+
+**Includes:** Advanced SVG filter primitives (blur, color manipulation, lighting)
+
+**Use for:** SVG with visual effects
+
+```ruby
+scrubber = Scrubber.new do |config|
+  config.use_profiles = { svg: true, svg_filters: true }
+end
+```
+
+#### MathML Profile
+
+**Enable:** `use_profiles: { math_ml: true }`
+
+**Includes:** MathML elements for mathematical notation
+
+**Use for:** Scientific documents, mathematical content
+
+```ruby
+scrubber = Scrubber.new do |config|
+  config.use_profiles = { html: true, math_ml: true }
+end
+```
+
+#### HTML Email Profile
+
+**Enable:** `use_profiles: { html_email: true }`
+
+**Includes:**
+- HTML elements + document structure (`head`, `meta`, `style`)
+- Legacy presentation tags (`font`, `center`)
+- Legacy attributes (`bgcolor`, `cellpadding`, `valign`, etc.)
+- Per-tag attribute restrictions (automatic)
+
+**Excludes:** Forms, scripts, interactive elements
+
+**Special settings:**
+- Allows style tags (required for email)
+- Disables DOM clobbering protection (emails are sandboxed)
+- Parses as whole document
+
+**Use for:** HTML email rendering
+
+```ruby
+scrubber = Scrubber.new do |config|
+  config.use_profiles = { html_email: true }
+end
+```
+
+## 🔒 Security
+
+### Threat Model
+
+Scrubber defends against multiple attack vectors:
+
+#### XSS (Cross-Site Scripting)
+
+**Attack:** Injecting scripts via HTML tags or attributes
+
+**Protection:**
+- Removes `<script>`, `<iframe>`, `<object>`, `<embed>` tags
+- Blocks event handlers (`onclick`, `onerror`, `onload`, etc.)
+- Validates URI attributes to prevent `javascript:` and `vbscript:` protocols
+
+```ruby
+# Attack blocked
+scrubber.sanitize('<script>alert("xss")</script>')
 # => ""
+
+scrubber.sanitize('<img src="javascript:alert(1)">')
+# => "<img>"
+
+scrubber.sanitize('<a onclick="alert(1)">Click</a>')
+# => "<a>Click</a>"
 ```
 
-### Special Features
+#### mXSS (Mutation-Based XSS)
 
-#### `safe_for_templates`
-**Type:** `Boolean` | **Default:** `false`
+**Attack:** HTML mutations during parsing that create XSS
 
-Remove template expressions (`{{ }}`, `<%= %>`, `${ }`) for template safety:
+**Protection:**
+- Multi-pass sanitization (validates output is stable)
+- Namespace confusion prevention  (SVG/MathML)
+- Proper HTML5 parsing
 
 ```ruby
-scrubber.configure do |config|
-  config.safe_for_templates = true
+# mXSS prevented through multi-pass sanitization
+scrubber = Scrubber.new do |config|
+  config.sanitize_until_stable = true  # default
+  config.mutation_max_passes = 2
 end
-
-scrubber.sanitize('<div>{{user.input}}</div>')
-# => "<div>  </div>"  # Expressions removed
 ```
 
-#### `safe_for_xml`
-**Type:** `Boolean` | **Default:** `true`
+#### DOM Clobbering
 
-Remove comments that could be risky in XML contexts:
+**Attack:** Using `id`/`name` attributes to override built-in DOM properties
+
+**Protection:**
+- Blocks dangerous id/name values (`document`, `location`, `alert`, `window`, etc.)
+- Can be disabled for sandboxed contexts like email
 
 ```ruby
-scrubber.configure do |config|
-  config.safe_for_xml = false  # Allow comments
-end
+# DOM clobbering blocked
+scrubber.sanitize('<form name="document">')
+# => "<form></form>" (name removed)
+
+scrubber.sanitize('<img id="location">')
+# => "<img>" (id removed)
 ```
 
-#### `sanitize_dom`
-**Type:** `Boolean` | **Default:** `true`
+#### Protocol Injection
 
-Enable DOM-based sanitization (recommended to keep enabled for security).
+**Attack:** Using dangerous URI protocols to execute code
 
-## Default Allow Lists
-
-When no specific `allowed_tags` or `allowed_attributes` are configured, Scrubber uses comprehensive default allow lists that balance functionality with security.
-
-### Default Allowed Tags
-**Includes:** All standard HTML5 tags, SVG tags, MathML tags, and custom elements
-
-The default tag list includes:
-- **HTML5 semantic elements**: `article`, `section`, `header`, `footer`, `nav`, `aside`, `main`
-- **Interactive elements**: `button`, `input`, `select`, `textarea`, `form` (but attributes are sanitized)
-- **Media elements**: `audio`, `video`, `img`, `canvas`, `svg`
-- **Table elements**: `table`, `thead`, `tbody`, `tr`, `th`, `td`
-- **Typography**: `p`, `h1-h6`, `strong`, `em`, `blockquote`, `code`, `pre`
-- **Links and navigation**: `a`, `area`, `link`
-- **Metadata**: `meta`, `title`, `head`, `html`
-- **SVG and MathML**: Full support for vector graphics and mathematical notation
-- **Custom elements**: Any tag containing `-` (web components)
-
-**Security rationale:**
-- Excludes inherently dangerous tags like `<script>`, `<object>`, `<embed>`, `<iframe>`
-- Allows rich content while preventing script execution
-- Supports modern web standards (HTML5, SVG, MathML)
-- Permits custom elements for modern web development
-
-### Default Allowed Attributes
-**Includes:** Safe attributes for layout, styling, accessibility, and functionality
-
-The default attribute list includes:
-- **Layout and positioning**: `width`, `height`, `align`, `valign`, `colspan`, `rowspan`
-- **Styling**: `class`, `style`, `color`, `face`, `size` (but `style` content is sanitized)
-- **Accessibility**: `alt`, `title`, `lang`, `dir`, `tabindex`, `role`
-- **Forms**: `type`, `name`, `value`, `placeholder`, `required`, `disabled`
-- **Links**: `href`, `rel`, `target`, `download`
-- **Media**: `src`, `poster`, `controls`, `autoplay`, `loop`
-- **Metadata**: `id`, `data-*`, `aria-*` (when enabled)
-- **SVG/MathML**: Comprehensive attribute support for these namespaces
-
-**Security rationale:**
-- Automatically blocks dangerous attributes: `onclick`, `onload`, `javascript:`, `vbscript:`
-- Sanitizes URI attributes to prevent XSS via links
-- Validates `style` attributes to prevent CSS-based attacks
-- Allows rich interactivity while blocking script execution
-- Supports modern accessibility standards
-
-**Why these defaults:**
-- Based on DOMPurify's battle-tested allow lists
-- Comprehensive coverage prevents bypass attempts
-- Conservative approach: allow functionality, block danger
-- Regular updates ensure compatibility with web standards
-
-## Advanced Features
-
-### Hooks
-
-You can further extend Scrubber's sanitization behavior with hooks:
+**Protection:**
+- Blocks `javascript:`, `vbscript:`, `data:text/html` protocols
+- Validates against allowlist of safe protocols
+- Custom protocol validation with `allowed_uri_regexp`
 
 ```ruby
-# Before sanitizing elements
-scrubber.add_hook(:before_sanitize_elements) do |node, data, config|
-  puts "Processing: #{node.name}"
-end
+scrubber.sanitize('<a href="javascript:alert(1)">Click</a>')
+# => "<a>Click</a>"
 
-# During attribute sanitization
-scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
-  if data[:attr_name] == 'data-custom'
-    # Force keep this attribute
-    data[:keep_attr] = true
-  end
-end
-
-# After sanitizing elements
-scrubber.add_hook(:after_sanitize_elements) do |node, data, config|
-  # Custom post-processing
-end
-
-# Remove hooks
-scrubber.remove_hook(:before_sanitize_elements, my_hook_function)
-scrubber.remove_all_hooks
+scrubber.sanitize('<link href="vbscript:msgbox(1)">')
+# => (link removed)
 ```
 
-#### Per-Tag Attribute Control with Hooks
+#### CSS Injection
 
-Hooks provide powerful per-tag attribute control, allowing you to specify which attributes are allowed on specific HTML tags. This is useful for enforcing strict security policies or implementing custom sanitization rules.
+**Attack:** Using CSS to execute code or exfiltrate data
 
-**Example: Allow specific attributes only on certain tags**
+**Protection:**
+- Parses and validates inline `style` attributes
+- Removes dangerous CSS properties and values
+- Scans `<style>` tag content for unsafe patterns
 
 ```ruby
-scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
-  tag_name = data[:tag_name]
-  attr_name = data[:attr_name]
+scrubber.sanitize('<div style="expression(alert(1))"></div>')
+# => "<div></div>" (dangerous style removed)
 
-  # Allow href only on <a> tags
-  if attr_name == 'href' && tag_name == 'a'
-    data[:keep_attr] = true
-  end
-
-  # Allow src only on <img>, <video>, and <audio> tags
-  if attr_name == 'src' && ['img', 'video', 'audio'].include?(tag_name)
-    data[:keep_attr] = true
-  end
-
-  # Allow colspan and rowspan only on table cells
-  if ['colspan', 'rowspan'].include?(attr_name) && ['td', 'th'].include?(tag_name)
-    data[:keep_attr] = true
-  end
-end
+scrubber.sanitize('<div style="background: url(javascript:alert(1))"></div>')
+# => "<div></div>" (dangerous style removed)
 ```
 
-**Example: Custom data attributes per component**
+### Security Best Practices
+
+#### 1. Use Allowlists, Not Blocklists
 
 ```ruby
-# Allow specific data attributes only on certain custom elements
-scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
-  tag_name = data[:tag_name]
-  attr_name = data[:attr_name]
+# ✅ Good - explicitly allow safe tags
+config.allowed_tags = ['p', 'strong', 'em', 'a']
 
-  case tag_name
-  when 'user-profile'
-    # Allow data-user-id only on <user-profile> elements
-    data[:keep_attr] = true if attr_name == 'data-user-id'
-  when 'product-card'
-    # Allow data-product-id and data-price only on <product-card> elements
-    data[:keep_attr] = true if ['data-product-id', 'data-price'].include?(attr_name)
-  end
-end
+# ❌ Avoid - trying to block everything dangerous is error-prone
+config.forbidden_tags = ['script', 'iframe', ...] # incomplete!
 ```
 
-**Available hook data:**
-- `data[:tag_name]` - The element's tag name (lowercase)
-- `data[:attr_name]` - The attribute name (lowercase)
-- `data[:value]` - The attribute value
-- `data[:keep_attr]` - Set to `true` to force keeping the attribute
+#### 2. Restrict URI Protocols
 
-## Security
+```ruby
+# ✅ Good - only allow HTTPS  
+config.allowed_uri_regexp = /^https:/
 
-Scrubber provides comprehensive XSS protection based on DOMPurify's battle-tested security model.
+# ⚠️ Caution - allowing unknown protocols is risky
+config.allow_unknown_protocols = true  # avoid unless necessary
+```
+
+#### 3. Disable Data URIs Unless Needed
+
+```ruby
+# ✅ Good for user-generated content
+config.allow_data_uri = false
+
+# ⚠️ Only enable for trusted content
+config.allow_data_uri = true  # only if you need it
+```
+
+#### 4. Remove Event Handlers
+
+```ruby
+# ✅ Good - block all event handlers
+config.forbidden_attributes = [
+  'onclick', 'onload', 'onerror', 'onmouseover',
+  'onfocus', 'onblur', 'onchange', 'onsubmit'
+]
+```
+
+#### 5. Keep DOM Sanitization Enabled
+
+```ruby
+# ✅ Good - default setting
+config.sanitize_dom = true
+
+# ⚠️ Only disable for sandboxed contexts (e.g., email rendering)
+config.sanitize_dom = false  # use with caution
+```
+
+#### 6. Use Per-Tag Attribute Control
+
+```ruby
+# ✅ Good - prevents attribute confusion
+config.allowed_attributes_per_tag = {
+  'a' => ['href', 'title'],      # no 'src' on links
+  'img' => ['src', 'alt'],       # no 'href' on images
+  'form' => ['action', 'method'] # only form-specific attrs
+}
+```
+
+#### 7. Keep Scrubber Updated
+
+```ruby
+# Check your Gemfile.lock regularly
+bundle outdated scrubber
+
+# Update to latest version
+bundle safe update scrubber
+```
 
 ### Recommended Configurations
 
-#### Maximum Security (User-Generated Content)
+#### Maximum Security (User Comments)
+
 ```ruby
-scrubber.configure do |config|
-  config.allowed_tags = ['p', 'strong', 'em', 'a', 'br']
+scrubber = Scrubber.new do |config|
+  config.allowed_tags = ['p', 'br', 'strong', 'em', 'a']
   config.allowed_attributes = ['href']
-  config.forbidden_attributes = ['onclick', 'onerror', 'onload', 'onmouseover', 'style']
+  config.forbidden_attributes = ['onclick', 'onerror', 'onload', 'style']
   config.allow_data_uri = false
   config.keep_content = false
 end
 ```
 
 #### Content Management System
+
 ```ruby
-scrubber.configure do |config|
-  config.allowed_tags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'strong', 'em', 'a', 'ul', 'ol', 'li', 'blockquote', 'code', 'pre', 'br', 'div', 'span']
-  config.allowed_attributes = ['href', 'title', 'class', 'id']
-  config.additional_attributes = ['data-*']  # Allow data attributes
-  config.allow_data_uri = true
-  config.keep_content = true
+scrubber = Scrubber.new do |config|
+  config.allowed_tags = [
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'p', 'br', 'strong', 'em', 'ul', 'ol', 'li',
+    'blockquote', 'code', 'pre', 'a', 'img',
+    'div', 'span', 'table', 'tr', 'td', 'th'
+  ]
+  config.allowed_attributes = ['href', 'src', 'alt', 'title', 'class', 'id']
+  config.allow_data_uri = true  # for embedded images
+  config.allowed_uri_regexp = /^(?:https?:|\/)/  # only https and relative
 end
 ```
 
 #### Rich Text Editor
+
 ```ruby
-scrubber.configure do |config|
-  config.allowed_tags = ['p', 'strong', 'em', 'a', 'ul', 'ol', 'li', 'blockquote', 'code', 'pre', 'br', 'h1', 'h2', 'h3', 'table', 'thead', 'tbody', 'tr', 'th', 'td']
-  config.allowed_attributes = ['href', 'title', 'class', 'colspan', 'rowspan']
-  config.forbidden_attributes = ['style']  # Prevent CSS injection
+scrubber = Scrubber.new do |config|
+  config.use_profiles = { html: true }
+  config.forbidden_tags = ['script', 'iframe', 'object', 'embed']
+  config.forbidden_attributes = ['on*']  # remove all event handlers
+  config.allowed_attributes_per_tag = {
+    'img' => ['src', 'alt', 'width', 'height'],
+    'a' => ['href', 'title']
+  }
 end
 ```
 
-### Best Practices
+## ⚡ Performance
 
-1. **Use allowlists, not blocklists** - Only allow known safe tags/attributes
-2. **Validate URIs** - Use `allowed_uri_regexp` to restrict protocols
-3. **Disable data URIs** - Unless you specifically need them
-4. **Remove event handlers** - Block `on*` attributes
-5. **Keep DOM sanitization enabled** - Don't disable `sanitize_dom`
-6. **Regular updates** - Keep Scrubber updated for latest security fixes
+Scrubber is optimized for performance while maintaining security.
 
-## API Reference
+### Benchmarks
 
-### Core Methods
+Executed on Apple M1 Max via `ruby spec/scrubber_performance_spec.rb`:
 
-#### `scrubber.sanitize(dirty_html, config = {})`
-Sanitize HTML string or Nokogiri node.
+| Input Size | Default Config | Strict Config | Throughput (Default) | Throughput (Strict) |
+|------------|----------------|---------------|----------------------|---------------------|
+| 1KB | ~3.3ms | ~0.3ms | ~300 KB/s | ~3,300 KB/s |
+| 10KB | ~31ms | ~3.3ms | ~320 KB/s | ~3,000 KB/s |
+| 50KB | ~160ms | ~16ms | ~310 KB/s | ~3,100 KB/s |
+| 100KB | ~340ms | ~31ms | ~290 KB/s | ~3,200 KB/s |
+| 500KB | ~1.8s | ~170ms | ~280 KB/s | ~2,900 KB/s |
 
-**Parameters:**
-- `dirty_html` (String|Nokogiri::XML::Node): Input to sanitize
-- `config` (Hash): Optional configuration override
+**Stress tests:**
+- 1,000 small docs: ~0.40s total (~2,450 docs/sec)
+- Deep nesting (100 levels): <5s
+- Memory growth: <50k objects over 100 iterations
 
-**Returns:** Sanitized HTML string or Nokogiri document
+### Performance Tips
 
-#### `scrubber.configure { |config| ... }`
-Configure a scrubber instance using a block.
-
-#### `scrubber.set_config(config_hash)`
-Set configuration directly with a hash.
-
-#### `scrubber.clear_config`
-Reset to default configuration.
-
-#### `scrubber.supported?`
-Check if required dependencies (Nokogiri) are available for this instance.
-
-**Returns:** Boolean
-
-#### `scrubber.removed`
-Get list of elements/attributes that were removed during last sanitization.
-
-**Returns:** Array of removal records
-
-#### `Scrubber.sanitize(dirty_html, config = {})`
-Convenience module method that instantiates a new scrubber with the provided config and sanitizes in one call.
-
-### Hook Methods
-
-#### `scrubber.add_hook(entry_point, &block)`
-Add a hook function.
-
-**Parameters:**
-- `entry_point` (Symbol): `:before_sanitize_elements`, `:after_sanitize_elements`, `:upon_sanitize_attribute`, etc.
-- `block` (Proc): Hook function
-
-#### `scrubber.remove_hook(entry_point, hook_function = nil)`
-Remove specific hook or all hooks for an entry point.
-
-#### `scrubber.remove_all_hooks`
-Remove all hooks.
-
-### Configuration Attributes (defaults and security notes)
-
-All options accept `snake_case` keys. Defaults are chosen for safety and DOMPurify parity. Changing them can reduce security—notes per option below.
-
-| Option | Default | Description & Security Implications |
-| --- | --- | --- |
-| `allowed_tags` | `nil` (use default safe set) | Exact allowlist of elements. When set, only these tags pass. Use to restrict surface. |
-| `additional_tags` | `[]` | Extends default safe set. Increases surface; ensure tags are non-scriptable. |
-| `forbidden_tags` | `['base','link','meta','style','annotation-xml']` | Always removed even if allowed elsewhere. Removing entries can reintroduce navigation/XSS vectors. |
-| `allowed_attributes` | `nil` (default safe set) | Exact allowlist of attributes. Restrictive; disables defaults. |
-| `allowed_attributes_per_tag` | `nil` | Hash mapping tag names to allowed attributes for that tag. Provides fine-grained per-tag control. Takes precedence over `allowed_attributes` for specified tags. |
-| `additional_attributes` | `[]` | Extends default safe attributes. Expands surface; review risk. |
-| `forbidden_attributes` | `nil` | Attributes always removed. Use to hard-block specific attrs. |
-| `allow_data_attributes` | `true` | Controls `data-*`. Turning off removes all `data-*`. |
-| `allow_aria_attributes` | `true` | Controls `aria-*`. Turning off removes accessibility attrs. |
-| `allow_data_uri` | `false` | Blocks `data:` URIs by default. Enabling allows data URLs (safe only for vetted content). |
-| `allow_unknown_protocols` | `false` | If true, permits non-standard schemes (higher XSS/phishing risk). |
-| `allowed_uri_regexp` | `nil` | Custom regexp to validate URI attributes. Set to constrain destinations. |
-| `additional_uri_safe_attributes` | `[]` | Extra attributes treated as URI-like (e.g., `['filter']`). Ensure they are safe. |
-| `allow_style_tags` | `false` | `<style>` tags dropped by default. Enabling scans and drops blocks on unsafe content but remains heuristic. |
-| `sanitize_dom` | `true` | Removes clobbering `id`/`name` values. Disabling reopens DOM clobbering vectors. |
-| `safe_for_templates` | `false` | If true, strips template expressions (e.g., `{{ }}`, `${ }`, ERB). |
-| `safe_for_xml` | `true` | If true, removes comments/PI in XML-ish content. |
-| `whole_document` | `false` | Parse as full document instead of fragment. |
-| `allow_document_elements` | `false` | When `whole_document` is false, drop `html/head/body`. Set true to retain them (slightly larger surface). |
-| `minimal_profile` | `false` | Use a smaller HTML-only allowlist (no SVG/MathML). |
-| `force_body` | `false` | Forces body context when parsing fragments. |
-| `return_dom` | `false` | Return Nokogiri DOM instead of string. |
-| `return_dom_fragment` | `false` | Return Nokogiri fragment instead of string. |
-| `sanitize_until_stable` | `true` | Re-sanitize until stable to mitigate mutation-XSS. |
-| `mutation_max_passes` / `pass_limit` | `2` | Max passes for stabilization. Set to `0` to disable; higher increases cost. |
-| `keep_content` | `true` | If false, removes contents of stripped elements. |
-| `in_place` | `false` | If true, attempts to sanitize in place; use with care. |
-| `use_profiles` | `{}` | Enable `html`, `svg`, `svg_filters`, `math_ml` profiles to build allowlists. |
-| `namespace` | `'http://www.w3.org/1999/xhtml'` | Namespace for XHTML handling. |
-| `parser_media_type` | `'text/html'` | Parser media type; set to `application/xhtml+xml` for XHTML parsing. |
-| `custom_element_handling` | `nil` | Optional handling for custom elements. |
-
-#### CSS sanitization
-- Inline `style` attributes are parsed into declarations and only allowed properties are retained; any dangerous value (javascript: / expression / @import / behavior / binding / data:* (including SVG) or escaped variants) drops the whole attribute.
-- `<style>` tags remain default-deny; opt-in `allow_style_tags` still drops blocks containing unsafe content. |
-
-Usage examples:
+#### 1. Reuse Configurations
 
 ```ruby
-# Lock down to basic tags/attrs
-scrubber.sanitize(html,
-  allowed_tags: %w[p strong em a],
-  allowed_attributes: %w[href title],
-  mutation_max_passes: 2
-)
-
-# Extend defaults with a custom element and allow data URIs for images only
-scrubber.configure do |config|
-  config.additional_tags = ['my-widget']
-  config.allow_data_uri = true
-  config.allowed_uri_regexp = %r{^https?://example\\.com/}
-end
-
-# Enable style tags with heuristic scanning (use cautiously)
-scrubber.sanitize(html, allow_style_tags: true)
-```
-
-## Performance
-
-Scrubber is optimized for performance while maintaining security:
-
-### Tips for Better Performance
-
-1. **Use strict configurations** - Fewer allowed tags/attributes = faster processing
-2. **Reuse configurations** - Set once, use many times
-3. **Batch processing** - Process multiple documents together
-4. **Consider DOM return** - For multiple operations on same document
-
-```ruby
-# Good: Reuse configuration
-scrubber.configure do |config|
+# ✅ Good - reuse configuration
+scrubber = Scrubber.new do |config|
   config.allowed_tags = ['p', 'strong', 'em']
 end
 
 documents.each do |doc|
-  clean = scrubber.sanitize(doc)  # Fast - config already set
+  clean = scrubber.sanitize(doc)  # fast - config already set
 end
 
-# Less optimal: New config each time
+# ❌ Slower - new config each time
 documents.each do |doc|
-  clean = scrubber.sanitize(doc, allowed_tags: ['p', 'strong', 'em'])
+  clean = Scrubber.sanitize(doc, allowed_tags: ['p', 'strong', 'em'])
 end
 ```
 
-### Benchmarks (Apple M1 Max, local run)
+#### 2. Use Strict Configurations
 
-Executed via `ruby spec/scrubber_performance_spec.rb` (multi-pass sanitization enabled by default):
+More restrictive configurations are faster:
 
-- 1KB HTML (10 iters): Default ~3.3ms avg; Strict ~0.3ms avg
-- 10KB HTML (10 iters): Default ~31ms avg; Strict ~3.3ms avg
-- 50KB HTML (10 iters): Default ~154–161ms avg; Strict ~16ms avg
-- 100KB HTML (10 iters): Default ~320–350ms avg; Strict ~31ms avg
-- 500KB HTML (10 iters): Default ~1.7–1.8s avg; Strict ~0.16–0.17s avg
-- Throughput ranges: ~280–325 KB/s (default), ~3,100 KB/s (strict) across sizes
+```ruby
+# Faster - small allowlist
+config.allowed_tags = ['p', 'strong', 'em']
 
-Stress scenarios (from `spec/scrubber_performance_stress_spec.rb` fallback runner):
-- 1,000 small docs: ~0.40s total (~2,450 docs/sec)
-- Deep nesting (100 levels): <5s target met
-- Memory growth check: <50k object growth over 100 iterations
+# Slower - large allowlist or nil (uses defaults)
+config.allowed_tags = nil
+```
 
-## Compared To
+#### 3. Batch Processing
 
-Scrubber draws inspiration from DOMPurify's security model, bringing its battle-tested XSS prevention techniques to Ruby.
-See [COMPARISON.md](COMPARISON.md) for detailed comparison with other Ruby HTML sanitization libraries like Rails' built-in sanitizer, Loofah, and sanitize.
+Process multiple documents with the same instance:
 
-## Development
+```ruby
+scrubber = Scrubber.new do |config|
+  # ... configuration
+end
 
-### Setup
+cleaned_docs = documents.map { |doc| scrubber.sanitize(doc) }
+```
+
+#### 4. Adjust Multi-Pass Limit
+
+For trusted content, you can reduce passes:
+
+```ruby
+# Faster but less secure - use only for pre-validated content
+config.sanitize_until_stable = false
+
+# Or reduce max passes
+config.mutation_max_passes = 1  # default is 2
+```
+
+#### 5. Return DOM for Further Processing
+
+If you need to process the output further:
+
+```ruby
+config.return_dom = true
+doc = scrubber.sanitize(html)  # Returns Nokogiri document
+# ... further processing with Nokogiri
+```
+
+## 🔄 Migration Guides
+
+### From Rails Sanitizer
+
+```ruby
+# Before (Rails)
+ActionController::Base.helpers.sanitize(html, tags: ['p', 'strong'])
+
+# After (Scrubber)
+Scrubber.sanitize(html, allowed_tags: ['p', 'strong'])
+
+# Or create reusable instance
+@scrubber = Scrubber.new do |config|
+  config.allowed_tags = ['p', 'strong', 'em', 'a']
+  config.allowed_attributes = ['href']
+end
+
+@scrubber.sanitize(html)
+```
+
+### From Loofah
+
+```ruby
+# Before (Loofah)
+Loofah.fragment(html).scrub!(:prune).to_s
+
+# After (Scrubber)
+Scrubber.sanitize(html, keep_content: false)
+
+# With specific tags
+Loofah.fragment(html).scrub!(:strip).to_s
+
+# Scrubber equivalent
+Scrubber.sanitize(html, allowed_tags: ['p', 'strong'])
+```
+
+### From Sanitize Gem
+
+```ruby
+# Before (Sanitize)
+Sanitize.fragment(html, elements: ['p', 'strong'])
+
+# After (Scrubber)
+Scrubber.sanitize(html, allowed_tags: ['p', 'strong'])
+
+# Custom config
+Sanitize.fragment(html, Sanitize::Config::RELAXED)
+
+# Scrubber profiles
+Scrubber.sanitize(html) do |config|
+  config.use_profiles = { html: true }
+end
+```
+
+## 🆚 Comparison
+
+See [COMPARISON.md](COMPARISON.md) for a detailed comparison with other Ruby HTML sanitization libraries:
+
+- Rails' built-in sanitizer
+- Loofah
+- Sanitize gem
+
+**Key differentiators:**
+- Based on DOMPurify's proven security model
+- Protection against mXSS attacks
+- DOM clobbering prevention
+- Per-tag attribute control  
+- Hook system for extensibility
+- HTML email support with per-tag restrictions
+
+## ❓ FAQ
+
+### How is Scrubber different from other sanitizers?
+
+Scrubber brings DOMPurify's battle-tested security model to Ruby, with specific defenses against mXSS, DOM clobbering, and protocol injection that other Ruby sanitizers may not provide. It also offers per-tag attribute control and an extensible hook system.
+
+### Is Scrubber safe for user-generated content?
+
+Yes! Scrubber is specifically designed for sanitizing untrusted user input. Use restrictive configurations for maximum security (see [Recommended Configurations](#recommended-configurations)).
+
+### Can I use Scrubber with Rails?
+
+Absolutely! Scrubber works great with Rails:
+
+```ruby
+# In your helper
+def sanitize_user_content(html)
+  @scrubber ||= Scrubber.new do |config|
+    config.allowed_tags = ['p', 'strong', 'em', 'a']
+    config.allowed_attributes = ['href']
+  end
+  @scrubber.sanitize(html)
+end
+```
+
+### Does Scrubber work with HTML emails?
+
+Yes! Use the `html_email` profile:
+
+```ruby
+scrubber = Scrubber.new do |config|
+  config.use_profiles = { html_email: true }
+end
+```
+
+This includes legacy attributes and per-tag restrictions needed for email clients.
+
+### What about performance?
+
+Scrubber processes ~300 KB/s with default config and ~3,000 KB/s with strict config on modern hardware. Reuse configuration instances for best performance. See [Performance](#performance) section.
+
+### How do I allow custom elements?
+
+```ruby
+scrubber = Scrubber.new do |config|
+  config.additional_tags = ['my-custom-element', 'web-component']
+end
+```
+
+Elements with hyphens are treated as custom elements by default.
+
+### Can I allow inline styles?
+
+Yes, but they're sanitized for safety:
+
+```ruby
+scrubber = Scrubber.new do |config|
+  config.allowed_attributes = ['style']  # style is allowed by default
+end
+
+# Safe styles pass through
+scrubber.sanitize('<div style="color: red;">Text</div>')
+# => '<div style="color:red;">Text</div>'
+
+# Dangerous styles are removed
+scrubber.sanitize('<div style="expression(alert(1))">Text</div>')
+# => '<div>Text</div>'
+```
+
+### How do I debug what's being removed?
+
+```ruby
+scrubber = Scrubber.new
+scrubber.sanitize(html)
+
+# Check what was removed
+removed = scrubber.removed
+removed.each do |item|
+  if item[:element]
+    puts "Removed element: #{item[:element].name}"
+  elsif item[:attribute]
+    puts "Removed attribute: #{item[:attribute].name} from #{item[:from].name}"
+  end
+end
+```
+
+## 🛠️ Troubleshooting
+
+### Content is being removed unexpectedly
+
+**Check your configuration:**
+
+```ruby
+# Enable keep_content to preserve text
+config.keep_content = true
+
+# Check if tags are in your allowlist
+puts scrubber.config.allowed_tags
+
+# Use additional_tags instead of allowed_tags to extend defaults
+config.additional_tags = ['custom-tag']  # instead of replacing all
+```
+
+### Attributes are being stripped
+
+**Verify attribute configuration:**
+
+```ruby
+# Check which attributes are allowed
+puts scrubber.config.allowed_attributes
+
+# Use additional_attributes to extend
+config.additional_attributes = ['data-custom']
+
+# Or use per-tag control
+config.allowed_attributes_per_tag = {
+  'div' => ['class', 'id', 'data-custom']
+}
+```
+
+### Style tags are removed
+
+**Enable style tags:**
+
+```ruby
+config.allow_style_tags = true
+
+# For whole documents (like emails)
+config.whole_document = true
+```
+
+### URI validation is too strict
+
+**Customize URI validation:**
+
+```ruby
+# Allow more protocols
+config.allowed_uri_regexp = /^(?:https?|ftp|mailto):/
+
+# Or allow unknown protocols (⚠️ less secure)
+config.allow_unknown_protocols = true
+```
+
+### Performance is slow
+
+**Optimize configuration:**
+
+```ruby
+# Use specific allowlists
+config.allowed_tags = ['p', 'strong', 'em']  # faster than nil/defaults
+
+# Reduce multi-pass iterations for trusted content
+config.mutation_max_passes = 1  # default is 2
+
+# Disable multi-pass for pre-validated content  
+config.sanitize_until_stable = false  # use with caution
+```
+
+## 🤝 Contributing
+
+We welcome contributions! Here's how to get involved:
+
+### Development Setup
 
 ```bash
+# Clone the repository
 git clone https://github.com/kuyio/scrubber.git
 cd scrubber
+
+# Install dependencies
 bundle install
-```
 
-### Testing
-
-```bash
-# Run all tests
+# Run tests
 make test
 
-# Run test suite with coverage
-COVERAGE=true rake spec
+# Run linter
+make lint
 
-# Run specific test file
-rspec spec/basic_sanitization_spec.rb
-```
-
-### Console
-
-```bash
+# Open console
 bin/console
 ```
 
-### Building
+### Running Tests
 
 ```bash
-# Build gem
-make build
+# All tests
+rake spec
 
-# Install locally
-make install
+# With coverage
+COVERAGE=true rake spec
+
+# Specific test file
+rspec spec/basic_sanitization_spec.rb
+
+# Performance tests
+ruby spec/scrubber_performance_spec.rb
 ```
 
-## Contributing
+### Contribution Guidelines
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Write tests for your changes
-4. Ensure all tests pass (`rake spec`)
-5. Update documentation as needed
-6. Commit your changes (`git commit -am 'Add amazing feature'`)
-7. Push to the branch (`git push origin feature/amazing-feature`)
-8. Open a Pull Request
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
+3. **Write** tests for your changes
+4. **Ensure** all tests pass (`rake spec`)
+5. **Update** documentation as needed
+6. **Commit** your changes (`git commit -am 'Add amazing feature'`)
+7. **Push** to the branch (`git push origin feature/amazing-feature`)
+8. **Open** a Pull Request
 
 ### Development Guidelines
 
 - **Security First**: All changes must maintain or improve security
 - **Backward Compatibility**: Avoid breaking changes when possible
-- **Comprehensive Tests**: New features need full test coverage
-- **Documentation**: Update README and inline docs for API changes
+- **Comprehensive Tests**: New features need full test coverage (aim for 100%)
+- **Documentation**: Update README and inline YARD docs for API changes
 - **Performance**: Consider performance impact of changes
+- **Code Quality**: Follow Ruby best practices and existing code style
 
-## License
+### Reporting Issues
+
+Found a bug or have a feature request?
+
+1. **Search** existing issues to avoid duplicates
+2. **Include** relevant details:
+   - Ruby version
+   - Scrubber version
+   - Minimal reproduction code
+   - Expected vs. actual behavior
+3. **Security issues**: Email security@kuyio.com instead of filing public issues
+
+## 📄 License
 
 This gem is available as open source under the terms of the **Apache License 2.0** and **Mozilla Public License 2.0**.
 
-## Acknowledgments
+## 🙏 Acknowledgments
 
-Originally inspired by the excellent [DOMPurify](https://github.com/cure53/DOMPurify) JavaScript library by Cure53 and contributors. Scrubber brings DOMPurify's battle-tested security to the Ruby ecosystem with an idiomatic Ruby API.
+Originally inspired by the excellent [DOMPurify](https://github.com/cure53/DOMPurify) JavaScript library by Cure53 and contributors. Scrubber brings DOMPurify's battle-tested security model to the Ruby ecosystem with an idiomatic Ruby API.
+
+Special thanks to all [contributors](https://github.com/kuyio/scrubber/graphs/contributors) who have helped make Scrubber better!
+
+---
+
+**Made with ❤️ in Ottawa, Canada 🇨🇦** • [GitHub](https://github.com/kuyio/scrubber) • [Documentation](https://rubydoc.info/gems/scrubber)

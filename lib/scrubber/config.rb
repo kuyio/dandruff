@@ -3,9 +3,180 @@
 module Scrubber
   # Configuration class for the Scrubber sanitizer
   #
-  # This class holds all configuration options for customizing the sanitization behavior.
-  # It provides default values and allows customization through various attributes.
+  # This class manages all configuration options for customizing HTML sanitization behavior.
+  # It provides sensible security-focused defaults and allows fine-grained control through
+  # numerous configuration options. Configuration can be set during initialization or modified
+  # later through accessor methods.
+  #
+  # @example Basic configuration
+  #   config = Scrubber::Config.new(
+  #     allowed_tags: ['p', 'strong', 'em'],
+  #     allowed_attributes: ['class', 'href']
+  #   )
+  #
+  # @example Using profiles
+  #   config = Scrubber::Config.new(use_profiles: { html: true, svg: true })
+  #
+  # @example Block configuration
+  #   scrubber = Scrubber.new do |config|
+  #     config.allowed_tags = ['p', 'a']
+  #     config.forbidden_attributes = ['onclick']
+  #   end
+  #
+  # @see Sanitizer Main sanitizer class that uses this configuration
   class Config
+    # @!attribute [rw] additional_attributes
+    #   Additional attributes to allow beyond defaults
+    #   @return [Array<String>] array of attribute names to add to allowlist
+    #   @example
+    #     config.additional_attributes = ['data-custom', 'aria-label']
+
+    # @!attribute [rw] additional_tags
+    #   Additional tags to allow beyond defaults
+    #   @return [Array<String>] array of tag names to add to allowlist
+    #   @example
+    #     config.additional_tags = ['custom-element', 'web-component']
+
+    # @!attribute [rw] additional_uri_safe_attributes
+    #   Additional attributes that should be treated as URIs and validated
+    #   @return [Array<String>] array of attribute names
+    #   @example
+    #     config.additional_uri_safe_attributes = ['data-link', 'poster']
+
+    # @!attribute [rw] allow_aria_attributes
+    #   Allow aria-* attributes for accessibility
+    #   @return [Boolean] true to allow aria attributes (default: true)
+
+    # @!attribute [rw] allow_data_attributes
+    #   Allow data-* attributes for custom data
+    #   @return [Boolean] true to allow data attributes (default: true)
+
+    # @!attribute [rw] allow_data_uri
+    #   Allow data: URIs in src and other URI attributes
+    #   @return [Boolean] true to allow data URIs (default: true for safe elements)
+    #   @note Data URIs can be large and may pose security risks if not validated
+
+    # @!attribute [rw] allow_unknown_protocols
+    #   Allow URI protocols not in the default safe list
+    #   @return [Boolean] true to allow unknown protocols (default: false)
+    #   @note Enabling this reduces security - use with caution
+
+    # @!attribute [rw] allow_self_close_in_attributes
+    #   Allow self-closing syntax in attributes
+    #   @return [Boolean] (default: true)
+
+    # @!attribute [rw] allowed_attributes
+    #   Exact allowlist of attributes (replaces defaults when set)
+    #   @return [Array<String>, nil] array of allowed attributes or nil to use defaults
+    #   @example
+    #     config.allowed_attributes = ['href', 'class', 'id']
+
+    # @!attribute [rw] allowed_attributes_per_tag
+    #   Per-tag attribute restrictions for fine-grained control
+    #   @return [Hash<String, Array<String>>, nil] hash mapping tag names to allowed attributes
+    #   @example
+    #     config.allowed_attributes_per_tag = {
+    #       'a' => ['href', 'title'],
+    #       'img' => ['src', 'alt']
+    #     }
+
+    # @!attribute [rw] allowed_tags
+    #   Exact allowlist of tags (replaces defaults when set)
+    #   @return [Array<String>, nil] array of allowed tags or nil to use defaults
+    #   @example
+    #     config.allowed_tags = ['p', 'strong', 'em', 'a']
+
+    # @!attribute [rw] allowed_uri_regexp
+    #   Custom regexp for validating URI attributes
+    #   @return [Regexp, nil] custom URI validation pattern or nil for default
+    #   @example Only allow HTTPS
+    #     config.allowed_uri_regexp = /^https:/
+
+    # @!attribute [rw] forbidden_attributes
+    #   Attributes that are always removed (takes precedence over allowed)
+    #   @return [Array<String>] array of forbidden attribute names
+    #   @example
+    #     config.forbidden_attributes = ['onclick', 'onerror']
+
+    # @!attribute [rw] forbidden_tags
+    #   Tags that are always removed (takes precedence over allowed)
+    #   @return [Array<String>] array of forbidden tag names
+    #   @example
+    #     config.forbidden_tags = ['script', 'iframe']
+
+    # @!attribute [rw] allow_style_tags
+    #   Allow <style> tags with content sanitization
+    #   @return [Boolean] true to allow style tags (default: true)
+    #   @note Style tag content is scanned for unsafe patterns
+
+    # @!attribute [rw] allow_document_elements
+    #   Allow html/head/body document structure elements
+    #   @return [Boolean] true to allow document elements (default: false)
+
+    # @!attribute [rw] keep_content
+    #   Keep text content when removing disallowed tags
+    #   @return [Boolean] true to preserve content (default: true)
+    #   @example
+    #     # With keep_content: true
+    #     # <script>alert()</script>Hello -> Hello
+    #     # With keep_content: false
+    #     # <script>alert()</script>Hello -> (empty)
+
+    # @!attribute [rw] return_dom
+    #   Return Nokogiri document instead of HTML string
+    #   @return [Boolean] true to return DOM (default: false)
+
+    # @!attribute [rw] return_dom_fragment
+    #   Return Nokogiri fragment instead of HTML string
+    #   @return [Boolean] true to return fragment (default: false)
+
+    # @!attribute [rw] whole_document
+    #   Parse and sanitize as complete HTML document
+    #   @return [Boolean] true for whole document (default: false)
+
+    # @!attribute [rw] safe_for_templates
+    #   Remove template expressions ({{, <%= , ${)
+    #   @return [Boolean] true to remove templates (default: false)
+
+    # @!attribute [rw] safe_for_xml
+    #   Remove comments in XML contexts
+    #   @return [Boolean] true to remove XML comments (default: true)
+
+    # @!attribute [rw] sanitize_dom
+    #   Enable DOM clobbering protection
+    #   @return [Boolean] true for protection (default: true)
+    #   @note Prevents id/name values from clobbering built-in DOM properties
+
+    # @!attribute [rw] sanitize_until_stable
+    #   Re-sanitize multiple passes to prevent mXSS
+    #   @return [Boolean] true for multi-pass (default: true)
+    #   @note Important for preventing mutation-based XSS attacks
+
+    # @!attribute [rw] mutation_max_passes
+    #   Maximum sanitization passes for stability
+    #   @return [Integer] max passes (default: 2)
+    #   @note Higher values increase security but reduce performance
+
+    # @!attribute [rw] namespace
+    #   XML namespace for document parsing
+    #   @return [String] namespace URI (default: 'http://www.w3.org/1999/xhtml')
+
+    # @!attribute [rw] parser_media_type
+    #   Parser media type for content parsing
+    #   @return [String] media type (default: 'text/html')
+
+    # @!attribute [rw] minimal_profile
+    #   Use minimal HTML-only profile (excludes SVG/MathML)
+    #   @return [Boolean] true for minimal (default: false)
+
+    # @!attribute [rw] force_body
+    #   Force body context when parsing
+    #   @return [Boolean] (default: false)
+
+    # @!attribute [rw] in_place
+    #   Attempt to sanitize in place (experimental)
+    #   @return [Boolean] (default: false)
+
     attr_accessor :additional_attributes, :add_attributes, :add_data_uri_tags,
       :additional_tags, :additional_uri_safe_attributes, :add_uri_safe_attributes,
       :allow_aria_attributes, :allow_data_attributes, :allow_data_uri, :allow_unknown_protocols,
@@ -65,7 +236,20 @@ module Scrubber
       process_profiles unless @use_profiles.empty?
     end
 
-    # Mapping of configuration keys to their setter methods
+    # Configuration key normalization mapping
+    #
+    # Maps configuration hash keys (including legacy aliases) to their corresponding
+    # setter methods. This allows flexible configuration key naming while maintaining
+    # backward compatibility with older key names.
+    #
+    # Keys are normalized to lowercase before lookup, so configuration is case-insensitive.
+    #
+    # @example Using different key styles
+    #   Config.new(allowed_tags: ['p'])           # Modern style
+    #   Config.new('allowed_tags' => ['p'])       # String keys
+    #   Config.new(add_tags: ['custom'])          # Legacy alias
+    #
+    # @api private
     CONFIG_MAPPING = {
       'add_tags' => :additional_tags=, # backward compatibility
       'additional_tags' => :additional_tags=,
@@ -98,6 +282,30 @@ module Scrubber
     }.freeze
 
     # Per-tag attribute restrictions for HTML email profile
+    #
+    # Defines which attributes are allowed on specific tags when using the html_email profile.
+    # This provides fine-grained security control by limiting each tag to only its appropriate
+    # attributes, preventing attribute confusion attacks where dangerous attributes appear on
+    # unexpected tags.
+    #
+    # **Security rationale:** Email clients have inconsistent rendering behavior, and allowing
+    # arbitrary attributes on any tag can lead to security issues. For example, allowing 'href'
+    # on 'img' tags or 'src' on 'a' tags could enable attacks. Per-tag restrictions prevent this.
+    #
+    # **Usage:** This constant is automatically used when `use_profiles: { html_email: true }`
+    # is configured. You can also use it as a template for your own per-tag attribute rules.
+    #
+    # @example Using email profile
+    #   config = Config.new(use_profiles: { html_email: true })
+    #   # Automatically uses HTML_EMAIL_ATTRIBUTES for per-tag control
+    #
+    # @example Custom per-tag attributes
+    #   config.allowed_attributes_per_tag = {
+    #     'a' => ['href', 'title'],
+    #     'img' => ['src', 'alt', 'width', 'height']
+    #   }
+    #
+    # @see #allowed_attributes_per_tag Configuration option for per-tag control
     HTML_EMAIL_ATTRIBUTES = {
       # Document structure
       'body' => %w[bgcolor text link vlink alink background style class id leftmargin topmargin marginwidth
@@ -167,7 +375,30 @@ module Scrubber
       'hr' => %w[align class id style dir lang title width size noshade]
     }.freeze
 
-    # Reassign profiles after initialization and rebuild derived settings
+    # Sets content type profiles and rebuilds configuration
+    #
+    # Profiles are pre-configured sets of tags and attributes for common content types.
+    # When you set profiles, the configuration automatically enables the appropriate
+    # tags, attributes, and security settings for those content types.
+    #
+    # **Available profiles:**
+    # - `:html` - Standard HTML5 content
+    # - `:svg` - SVG graphics
+    # - `:svg_filters` - SVG filter effects
+    # - `:math_ml` - Mathematical notation
+    # - `:html_email` - HTML email with legacy attributes
+    #
+    # @param profiles [Hash<Symbol, Boolean>] hash of profile names to enable
+    # @return [Hash] the set profiles
+    #
+    # @example Enable multiple profiles
+    #   config.use_profiles = { html: true, svg: true }
+    #
+    # @example Email profile
+    #   config.use_profiles = { html_email: true }
+    #
+    # @note Setting profiles resets allowed_tags and allowed_attributes to nil,
+    #   allowing the profile configuration to take effect
     def use_profiles=(profiles)
       @use_profiles = profiles || {}
       reset_profile_dependent_settings
@@ -187,6 +418,13 @@ module Scrubber
       end
     end
 
+    # Resets configuration settings that depend on profiles
+    #
+    # Called when profiles are changed to clear out profile-dependent settings
+    # before applying new profile configuration.
+    #
+    # @return [void]
+    # @api private
     def reset_profile_dependent_settings
       @allowed_tags = nil
       @allowed_attributes = nil
@@ -206,6 +444,13 @@ module Scrubber
       configure_allowed_attributes if @allowed_attributes.nil?
     end
 
+    # Configures allowed tags based on active profiles
+    #
+    # Builds the allowed tags list by combining tags from each enabled profile.
+    # Always includes '#text' for text content handling.
+    #
+    # @return [void]
+    # @api private
     def configure_allowed_tags
       @allowed_tags = ['#text']
       @allowed_tags += Tags::HTML if @use_profiles[:html]
@@ -215,6 +460,17 @@ module Scrubber
       configure_html_email_tags if @use_profiles[:html_email]
     end
 
+    # Configures settings specific to HTML email profile
+    #
+    # Email rendering requires special handling:
+    # - Allows style tags (required for email styling)
+    # - Allows document elements (html, head, body)
+    # - Treats as whole document
+    # - Disables DOM clobbering protection (emails are sandboxed)
+    # - Permits meta and style tags in forbidden list
+    #
+    # @return [void]
+    # @api private
     def configure_html_email_tags
       @allowed_tags += Tags::HTML_EMAIL
       @allow_style_tags = true
@@ -225,6 +481,13 @@ module Scrubber
       @forbidden_tags -= %w[meta style]
     end
 
+    # Configures allowed attributes based on active profiles
+    #
+    # Builds the allowed attributes list by combining attributes from each enabled profile.
+    # For html_email profile, uses per-tag attribute restrictions instead of global list.
+    #
+    # @return [void]
+    # @api private
     def configure_allowed_attributes
       @allowed_attributes = []
       @allowed_attributes += Attributes::HTML if @use_profiles[:html]
