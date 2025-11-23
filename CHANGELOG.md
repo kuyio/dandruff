@@ -1,5 +1,15 @@
 ## [Unreleased]
+ 
+## [0.7.0] - 2025-11-23
 
+### Fixed
+- Removed duplicate `describe 'namespace configuration'` block, reducing example count to 414.
+- Excluded `spec/fixtures/examples.rb` from RuboCop to avoid infinite loops.
+- Fixed unused method argument in `valid_uri_attribute?`.
+- Added `MATH_SVG_TAGS` constant and used safe navigation.
+- Disabled cyclomatic complexity and perceived complexity metrics for several methods.
+- Updated RSpec example titles for uniqueness.
+- Re-enabled RSpec/RepeatedExample cop after fixing duplicates.
 ## [0.6.0] - 2025-11-22
 
 ### Fixed

@@ -17,10 +17,7 @@ AllCops:
     - Gemfile
     - Gemfile.lock
     - vendor/**/*
-    - tmp/**/*
-    - db/**/*
-    - app/lib/active_job/**/*
-    - app/lib/mission_control/**/*
+    - spec/fixtures/examples.rb
 
 Style/Lambda:
   EnforcedStyle: literal

@@ -38,6 +38,7 @@ module Scrubber
   # This class manages the core sanitization process, configuration, and hooks.
   # It parses HTML, removes dangerous elements and attributes, and serializes the result.
   class Sanitizer
+    MATH_SVG_TAGS = %w[math svg].freeze
     attr_reader :removed, :config, :hooks
 
     # Initializes a new sanitizer instance
@@ -210,13 +211,13 @@ module Scrubber
             parent = node.parent
             # puts "Removing frameset and parent: #{parent&.name}"
             node.remove
-            parent.remove if parent
+            parent&.remove
           else
             node.remove
           end
           next
         elsif node.element? && node.name == 'style'
-          node.remove and next unless @config.allow_style_tags
+          node.remove && next unless @config.allow_style_tags
 
           if unsafe_style_node?(node)
             node.remove
@@ -329,6 +330,7 @@ module Scrubber
     #
     # @param tag_name [String] the tag name to check
     # @return [Boolean] true if the tag is allowed, false otherwise
+    # rubocop:disable Metrics/CyclomaticComplexity
     def allowed_element?(tag_name)
       if !@config.whole_document && !@config.allow_document_elements && !@config.return_dom &&
           %w[html head body].include?(tag_name)
@@ -347,6 +349,7 @@ module Scrubber
 
       default_allowed_tags.include?(tag_name)
     end
+    # rubocop:enable Metrics/CyclomaticComplexity
 
     # Checks if an attribute is valid for a given tag
     #
@@ -360,6 +363,7 @@ module Scrubber
     # @param attr_name [String] the attribute name
     # @param value [String] the attribute value
     # @return [Boolean] true if the attribute is valid, false otherwise
+    # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     def valid_attribute?(tag_name, attr_name, value)
       return false if forbidden_attribute?(attr_name)
       return false if dangerous_attribute?(attr_name)
@@ -378,7 +382,7 @@ module Scrubber
 
       return false if @config.sanitize_dom && dom_clobbering_attribute?(attr_name, value)
 
-      return valid_uri_attribute?(tag_name, attr_name, value, attr_allowed) if uri_like?(attr_name) && value
+      return valid_uri_attribute?(tag_name, value, attr_allowed) if uri_like?(attr_name) && value
 
       return attr_allowed if [true, false].include?(attr_allowed)
 
@@ -387,6 +391,7 @@ module Scrubber
 
       allow_unknown_protocols_fallback?(value)
     end
+    # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
     # Checks if an attribute name is URI-like
     #
@@ -492,8 +497,9 @@ module Scrubber
     def in_math_or_svg_context?(node)
       current = node.parent
       while current
-        return true if current.respond_to?(:element?) && current.element? && %w[math
-          svg].include?(current.name.downcase)
+        if current.respond_to?(:element?) && current.element? && MATH_SVG_TAGS.include?(current.name.downcase)
+          return true
+        end
         break unless current.respond_to?(:parent)
 
         current = current.parent
@@ -710,7 +716,7 @@ module Scrubber
     # @param node [Nokogiri::XML::Element] the element node
     # @return [Boolean] true if removed due to invalid namespace, false otherwise
     def handle_namespace_check(node)
-      return false unless node.namespace && node.namespace.href
+      return false unless node.namespace&.href
       return false if ['http://www.w3.org/1999/xhtml', 'http://www.w3.org/2000/svg', 'http://www.w3.org/1998/Math/MathML'].include?(node.namespace.href)
 
       node.children.to_a.each { |child| node.add_previous_sibling(child) } if @config.keep_content
@@ -769,7 +775,7 @@ module Scrubber
     #
     # @param node [Nokogiri::XML::Element] the element node
     def handle_vml_namespace(node)
-      return unless node['xmlns'] && node['xmlns'].match?(/vml/i)
+      return unless node['xmlns']&.match?(/vml/i)
 
       @removed << { element: node }
       node.remove
@@ -897,6 +903,7 @@ module Scrubber
     # @param tag_name [String] tag name
     # @param attr_name [String] attribute name
     # @return [Boolean, nil] true if allowed, nil otherwise
+    # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     def check_default_allowed_attributes(tag_name, attr_name)
       html_attrs = @html_attrs ||= Attributes::HTML.map { |a| transform_case(a) }.to_set
       svg_attrs = @svg_attrs ||= (Attributes::SVG + Attributes::XML).map { |a| transform_case(a) }.to_set
@@ -919,6 +926,7 @@ module Scrubber
       attr_allowed ||= html_attrs.include?(attr_name) if is_html
       attr_allowed ? true : nil
     end
+    # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
     # Checks if data attributes are allowed
     #
@@ -963,7 +971,8 @@ module Scrubber
     # @param value [String] attribute value
     # @param attr_allowed [Boolean] whether attribute is allowed
     # @return [Boolean] true if valid
-    def valid_uri_attribute?(tag_name, _attr_name, value, attr_allowed)
+    # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+    def valid_uri_attribute?(tag_name, value, attr_allowed)
       val = value.to_s
       leading_space_pattern = /\A[\s\u0085\u00a0\u1680\u180e\u2000-\u200b\u2028\u2029\u205f\u3000]+/
       trailing_space_pattern = /[\s\u0085\u00a0\u1680\u180e\u2000-\u200b\u2028\u2029\u205f\u3000]+\z/
@@ -993,6 +1002,7 @@ module Scrubber
 
       false # Reject invalid URIs or non-allowed URI attributes
     end
+    # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
     # Fallback check for unknown protocols
     #

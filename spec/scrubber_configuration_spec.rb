@@ -168,15 +168,6 @@ RSpec.describe Scrubber do
       end
     end
 
-    describe 'namespace configuration' do
-      it 'handles custom namespaces' do
-        dirty = '<div xmlns="http://www.w3.org/1999/xhtml">Content</div>'
-        clean = scrubber.sanitize(dirty, namespace: 'http://www.w3.org/1999/xhtml')
-        expect(clean).to include('<div')
-        expect(clean).to include('Content')
-      end
-    end
-
     describe 'parser_media_type configuration' do
       it 'handles XHTML parsing' do
         dirty = '<div>Content</div>'

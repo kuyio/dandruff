@@ -16,6 +16,7 @@ NOKOGIRI_PARSING_DIFFERENCES = [
   210  # Nested options - browsers auto-close, Nokogiri doesn't, but our output is safe
 ].freeze
 
+# rubocop:disable RSpec/RepeatedExample
 RSpec.describe 'Scrubber DOMPurify expectations' do
   EXPECTATIONS.each_with_index do |example, index|
     example_id = index + 1
@@ -23,7 +24,7 @@ RSpec.describe 'Scrubber DOMPurify expectations' do
     if NOKOGIRI_PARSING_DIFFERENCES.include?(example_id)
       # Skip tests that rely on browser-specific HTML5 parsing behavior
       # Scrubber's output is still safe, just structured differently than browsers would parse
-      xit "#{example['title']} (skipped: Nokogiri parsing difference)" do
+      xit "#{example['title']} (#{example_id}) (skipped: Nokogiri parsing difference)" do
         actual = Scrubber.sanitize(example['payload'])
         expected = example['expected']
 
@@ -34,7 +35,7 @@ RSpec.describe 'Scrubber DOMPurify expectations' do
         end
       end
     else
-      it example['title'] do
+      it "#{example['title']} (#{example_id})" do
         actual = Scrubber.sanitize(example['payload'])
         expected = example['expected']
 
@@ -47,3 +48,4 @@ RSpec.describe 'Scrubber DOMPurify expectations' do
     end
   end
 end
+# rubocop:enable RSpec/RepeatedExample
