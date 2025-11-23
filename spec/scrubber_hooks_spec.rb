@@ -55,5 +55,40 @@ RSpec.describe Scrubber do
 
       expect(hook_called).to be false
     end
+
+    it 'can remove a specific hook when multiple are present' do
+      hook1_called = false
+      hook2_called = false
+      hook1 = proc { hook1_called = true }
+      hook2 = proc { hook2_called = true }
+
+      scrubber.add_hook(:before_sanitize_elements, &hook1)
+      scrubber.add_hook(:before_sanitize_elements, &hook2)
+
+      scrubber.remove_hook(:before_sanitize_elements, hook1)
+      scrubber.sanitize('<p>test</p>')
+
+      expect(hook1_called).to be false
+      expect(hook2_called).to be true
+    end
+
+    it 'executes hooks in the order they were added' do
+      scrubber.set_config(mutation_max_passes: 1)
+      order = []
+      hook1 = proc { order << 1 }
+      hook2 = proc { order << 2 }
+
+      scrubber.add_hook(:before_sanitize_elements, &hook1)
+      scrubber.add_hook(:before_sanitize_elements, &hook2)
+
+      scrubber.sanitize('<p>test</p>')
+
+      expect(order).to eq([1, 2])
+    end
+
+    it 'does not fail when removing a non-existent hook' do
+      hook = proc {}
+      expect { scrubber.remove_hook(:before_sanitize_elements, hook) }.not_to raise_error
+    end
   end
 end

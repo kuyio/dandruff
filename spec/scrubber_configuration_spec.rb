@@ -187,13 +187,55 @@ RSpec.describe Scrubber do
     end
 
     describe 'allowed_uri_regexp configuration' do
-      it 'validates URIs against custom regexp' do
+      it 'validates URIs against custom regex' do
         custom_regexp = %r{^https?://example\.com/}
         scrubber.set_config(allowed_uri_regexp: custom_regexp)
         dirty = '<a href="https://example.com/path">Good</a><a href="https://evil.com/path">Bad</a>'
         clean = scrubber.sanitize(dirty)
         expect(clean).to include('href="https://example.com/path"')
         expect(clean).not_to include('href="https://evil.com/path"')
+      end
+
+      it 'handles case-insensitive regex' do
+        custom_regexp = %r{^https?://example\.com/}i
+        scrubber.set_config(allowed_uri_regexp: custom_regexp)
+        dirty = '<a href="HTTPS://EXAMPLE.COM/PATH">Good</a>'
+        clean = scrubber.sanitize(dirty)
+        expect(clean).to include('href="HTTPS://EXAMPLE.COM/PATH"')
+      end
+
+      it 'handles complex regex patterns' do
+        # Allow only specific paths on a domain
+        custom_regexp = %r{^https://example\.com/(api|static)/}
+        scrubber.set_config(allowed_uri_regexp: custom_regexp)
+        dirty = '<a href="https://example.com/api/v1">API</a><a href="https://example.com/admin">Admin</a>'
+        clean = scrubber.sanitize(dirty)
+        expect(clean).to include('href="https://example.com/api/v1"')
+        expect(clean).not_to include('href="https://example.com/admin"')
+      end
+    end
+
+    describe 'namespace configuration' do
+      it 'handles custom namespaces' do
+        dirty = '<div xmlns="http://www.w3.org/1999/xhtml">Content</div>'
+        clean = scrubber.sanitize(dirty, namespace: 'http://www.w3.org/1999/xhtml')
+        expect(clean).to include('<div')
+        expect(clean).to include('Content')
+      end
+
+      it 'switches namespaces correctly' do
+        # Test that we can sanitize SVG with correct namespace config
+        dirty = '<svg><rect/></svg>'
+        clean = scrubber.sanitize(dirty, namespace: 'http://www.w3.org/2000/svg')
+        expect(clean).to include('<svg')
+        expect(clean).to include('<rect')
+      end
+
+      it 'handles MathML namespace' do
+        dirty = '<math><mi>x</mi></math>'
+        clean = scrubber.sanitize(dirty, namespace: 'http://www.w3.org/1998/Math/MathML')
+        expect(clean).to include('<math')
+        expect(clean).to include('<mi>x</mi>')
       end
     end
 

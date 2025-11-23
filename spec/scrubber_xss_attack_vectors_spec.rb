@@ -274,6 +274,13 @@ RSpec.describe Scrubber do
         expect(clean).not_to include('baseProfile')
         expect(clean).not_to include('<script')
       end
+
+      it 'removes animateMotion with xlink:href' do
+        dirty = '<svg><animateMotion xlink:href="javascript:alert(1)"></animateMotion></svg>'
+        clean = scrubber.sanitize(dirty)
+        expect(clean).not_to include('animateMotion')
+        expect(clean).not_to include('javascript:')
+      end
     end
 
     describe 'mathml attacks' do
@@ -311,6 +318,19 @@ RSpec.describe Scrubber do
         clean = scrubber.sanitize(dirty)
         expect(clean).not_to include('annotation-xml')
         expect(clean).not_to include('script')
+      end
+
+      it 'removes maction with xlink:href' do
+        dirty = '<math><maction xlink:href="javascript:alert(1)">x</maction></math>'
+        clean = scrubber.sanitize(dirty)
+        expect(clean).not_to include('maction')
+        expect(clean).not_to include('javascript:')
+      end
+
+      it 'removes mtext with dangerous href' do
+        dirty = '<math><mtext href="javascript:alert(1)">x</mtext></math>'
+        clean = scrubber.sanitize(dirty)
+        expect(clean).not_to include('javascript:')
       end
     end
 
@@ -368,7 +388,7 @@ RSpec.describe Scrubber do
 
       # CSS hex escape decoding is complex and beyond current scope
       # The dangerous content is preserved as-is (still safe, browsers would decode)
-      xit 'removes obfuscated javascript in inline styles' do
+      it 'removes obfuscated javascript in inline styles' do
         dirty = '<div style="background:url(\\6aavascript:alert(1))">Test</div>'
         clean = scrubber.sanitize(dirty)
         # Would need CSS escape decoder to detect this
@@ -438,8 +458,8 @@ RSpec.describe Scrubber do
       end
 
       # Leading whitespace handling in URIs is complex
-      xit 'blocks leading whitespace in URIs' do
-        dirty = "<a href=\"\\n javascript:alert(1)\">x</a>"
+      it 'blocks leading whitespace in URIs' do
+        dirty = "<a href=\"\n javascript:alert(1)\">x</a>"
         clean = scrubber.sanitize(dirty)
         # Would need advanced URI normalization
         expect(clean).not_to include('javascript')
