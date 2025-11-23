@@ -237,83 +237,21 @@ module Scrubber
 
     def sanitize_element(node)
       tag_name = transform_case(node.name)
-      if tag_name == 'isindex'
-        replacement = build_isindex_replacement(node)
-        node.add_next_sibling(replacement) if replacement
-        @removed << { element: node }
-        node.remove
-        return
-      end
 
-      # Remove elements that are dangerous in MathML/SVG contexts (mXSS protection)
-      if dangerous_in_math_svg?(node)
-        @removed << { element: node }
-        node.remove
-        return
-      end
-
-      # puts "Sanitizing node: #{node.name}, type: #{node.type}"
-      if node.element?
-        # if node.name == 'html:style' || node.name == 'x' || node.name == 'doc'
-        #    puts "Sanitizing #{node.name}. Parent: #{node.parent&.name}. Children: #{node.children.map { |c| "#{c.name} (#{c.type}) [#{c.content.inspect}]" }}"
-        # end
-      end
-      if node.namespace && node.namespace.href &&
-          !['http://www.w3.org/1999/xhtml', 'http://www.w3.org/2000/svg', 'http://www.w3.org/1998/Math/MathML'].include?(node.namespace.href)
-        node.children.to_a.each { |child| node.add_previous_sibling(child) } if @config.keep_content
-        @removed << { element: node }
-        node.remove
-        return
-      end
-
-      # Handle namespace-prefixed elements
-      if tag_name.include?(':')
-        prefix = tag_name.split(':').first.downcase
-        # For XML/XMLNS namespace elements, extract text content from all descendants before removing
-        if %w[xml xmlns].include?(prefix)
-          # Extract all text nodes from descendants
-          if @config.keep_content
-            text_nodes = []
-            node.traverse do |n|
-              text_nodes << n if n.text?
-            end
-            text_nodes.each { |text_node| node.add_previous_sibling(text_node.dup) }
-          end
-          @removed << { element: node }
-          node.remove
-          return
-        end
-        # For other prefixed elements (like html:style), remove element but keep content
-        node.children.to_a.each { |child| node.add_previous_sibling(child) } if @config.keep_content
-        @removed << { element: node }
-        node.remove
-        return
-      end
+      return if handle_isindex(node, tag_name)
+      return if handle_dangerous_math_svg(node)
+      return if handle_namespace_check(node)
+      return if handle_prefixed_element(node, tag_name)
 
       execute_hooks(:upon_sanitize_element, node, { tag_name: tag_name })
+
       unless allowed_element?(tag_name)
-        replaced_children = false
-        if @config.keep_content && !forbidden_content?(tag_name) && !@config.allowed_tags
-          if node.children.any?
-            node.children.to_a.each { |child| node.add_previous_sibling(child) }
-            replaced_children = true
-          else
-            node.remove
-          end
-        elsif @config.allowed_tags && node.children.any?
-          node.add_next_sibling(Nokogiri::XML::Text.new(' ', node.document))
-        end
-        @removed << { element: node }
-        node.remove unless replaced_children
+        handle_disallowed_element(node, tag_name)
         return
       end
+
       sanitize_attributes(node)
-
-      return unless node['xmlns'] && node['xmlns'].match?(/vml/i)
-
-      @removed << { element: node }
-      node.remove
-      nil
+      handle_vml_namespace(node)
     end
 
     # Sanitizes attributes of an element
@@ -323,61 +261,42 @@ module Scrubber
       tag_name = transform_case(node.name)
       to_remove = []
       dangerous_removed = false
-      dangerous_attrs = %w[href content]
-      dangerous_tags = %w[meta link]
       had_xlink_href = node.key?('xlink:href')
+
       execute_hooks(:before_sanitize_attributes, node)
+
       node.attributes.each do |name, attr|
-        lc_name = if attr.namespace&.prefix == 'xmlns'
-                    if name == 'xmlns'
-                      'xmlns'
-                    else
-                      "xmlns:#{transform_case(name)}"
-                    end
-                  else
-                    transform_case(name)
-                  end
+        lc_name = normalize_attribute_name(name, attr)
+
+        handle_is_attribute(attr, lc_name)
         value = attr.value
-        if lc_name == 'is'
-          attr.value = ''
-          value = ''
-        end
-        if lc_name.start_with?('xlink:')
-          begin
-            node.add_namespace_definition('xlink', 'http://www.w3.org/1999/xlink')
-          rescue StandardError
-            nil
-          end
-        end
+
+        handle_xlink_namespace_definition(node, lc_name)
+
         had_xlink_href ||= (lc_name == 'xlink:href')
         had_xlink_href ||= (attr.namespace&.href == 'http://www.w3.org/1999/xlink')
+
         execute_hooks(:upon_sanitize_attribute, attr, { tag_name: tag_name, attr_name: lc_name, value: value })
-        allowed = valid_attribute?(tag_name, lc_name, value)
-        attr.value = value if allowed && value != attr.value
-        next if allowed
 
-        to_remove << name
-        @removed << { attribute: attr, from: node }
-        dangerous_removed = true if dangerous_attrs.include?(lc_name) && dangerous_tags.include?(tag_name)
-      end
-      to_remove.each { |n| node.delete(n) }
-      # Remove meta/link tags entirely if dangerous attributes were removed
-      node.remove if dangerous_removed && dangerous_tags.include?(tag_name)
-
-      # Ensure alt is present on images when allowed by profile (helps email fidelity/accessibility)
-      if tag_name == 'img' && @config.allowed_attributes_per_tag.is_a?(Hash)
-        allowed = @config.allowed_attributes_per_tag['img']
-        node['alt'] = '' if allowed&.include?('alt') && !node.key?('alt')
-      end
-
-      if (had_xlink_href || node.key?('xlink:href')) && !node['xmlns:xlink']
-        node['xmlns:xlink'] = 'http://www.w3.org/1999/xlink'
-        begin
-          node.add_namespace_definition('xlink', 'http://www.w3.org/1999/xlink')
-        rescue StandardError
-          nil
+        if valid_attribute?(tag_name, lc_name, value)
+          attr.value = value if value != attr.value
+        else
+          to_remove << name
+          @removed << { attribute: attr, from: node }
+          dangerous_removed = true if dangerous_attribute_removed?(lc_name, tag_name)
         end
       end
+
+      to_remove.each { |n| node.delete(n) }
+
+      # Remove meta/link tags entirely if dangerous attributes were removed
+      if dangerous_removed && %w[meta link].include?(tag_name)
+        node.remove
+        return
+      end
+
+      ensure_alt_attribute(node, tag_name)
+      ensure_xlink_namespace(node) if had_xlink_href || node.key?('xlink:href')
 
       execute_hooks(:after_sanitize_attributes, node)
     end
@@ -435,123 +354,38 @@ module Scrubber
     # @param attr_name [String] the attribute name
     # @param value [String] the attribute value
     # @return [Boolean] true if the attribute is valid, false otherwise
-    def valid_attribute?(tag_name, attr_name, value) # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
-      # puts "Checking attribute: #{tag_name} #{attr_name}=#{value}"
-      return false if @config.forbidden_attributes&.include?(attr_name)
+    # Checks if an attribute is valid for a given tag
+    #
+    # @param tag_name [String] the element tag name
+    # @param attr_name [String] the attribute name
+    # @param value [String] the attribute value
+    # @return [Boolean] true if the attribute is valid, false otherwise
+    def valid_attribute?(tag_name, attr_name, value)
+      return false if forbidden_attribute?(attr_name)
+      return false if dangerous_attribute?(attr_name)
 
-      # Security: Check dangerous attributes (name and value) FIRST
-      return false if Attributes::DANGEROUS.any? { |d| attr_name.match?(/#{d}/i) }
+      attr_allowed = attribute_allowed?(tag_name, attr_name)
 
-      # Determine if attribute is allowed for this tag
-      attr_allowed = nil # nil means "not yet determined"
-      has_per_tag_rule = false
-
-      # Check per-tag allowed attributes if configured
-      if @config.allowed_attributes_per_tag.is_a?(Hash)
-        per_tag_attrs = @config.allowed_attributes_per_tag[tag_name]
-        if per_tag_attrs
-          has_per_tag_rule = true
-          attr_allowed = per_tag_attrs.map { |a| transform_case(a) }.include?(attr_name)
-        end
-      end
-
-      # Check allowed attributes list if no per-tag rule applies
-      if !has_per_tag_rule && !@config.allowed_attributes.nil?
-        allowed = @config.allowed_attributes.dup.map { |a| transform_case(a) }
-        allowed.concat(@config.additional_attributes&.map { |a| transform_case(a) }) if @config.additional_attributes
-        attr_allowed = allowed.include?(attr_name)
-      elsif !has_per_tag_rule && attr_allowed.nil?
-        html_attrs = @html_attrs ||= Attributes::HTML.map { |a| transform_case(a) }.to_set
-        svg_attrs = @svg_attrs ||= (Attributes::SVG + Attributes::XML).map { |a| transform_case(a) }.to_set
-        math_attrs = @math_attrs ||= (Attributes::MATH_ML + Attributes::XML).map { |a| transform_case(a) }.to_set
-
-        @html_tags_set ||= Tags::HTML.map { |t| transform_case(t) }.to_set
-        @svg_tags_set ||= (Tags::SVG + Tags::SVG_FILTERS).map { |t| transform_case(t) }.to_set
-        @math_tags_set ||= Tags::MATH_ML.map { |t| transform_case(t) }.to_set
-
-        is_svg = @svg_tags_set.include?(tag_name)
-        is_math = @math_tags_set.include?(tag_name)
-        is_html = @html_tags_set.include?(tag_name)
-
-        # Default to HTML if not recognized as standard tag but allowed
-        is_html = true if !is_svg && !is_math
-
-        attr_allowed = false
-        attr_allowed ||= svg_attrs.include?(attr_name) if is_svg
-        attr_allowed ||= math_attrs.include?(attr_name) if is_math
-        attr_allowed ||= html_attrs.include?(attr_name) if is_html
-      end
-      # else: attr_allowed stays nil, will use default permissive checks later
-
-      attr_allowed = true if @config.allow_data_attributes && attr_name.match?(Expressions::DATA_ATTR)
-      attr_allowed = true if @config.allow_aria_attributes && attr_name.match?(Expressions::ARIA_ATTR)
-
-      # For style attributes, validate content for dangerous CSS
-      if attr_name == 'style'
-        # Check if attribute is allowed by configuration
-        return false unless attr_allowed || attr_allowed.nil?
-        # Check if style content is unsafe
-        return false if value && unsafe_inline_style?(value.to_s)
-
-        return true
-      end
-
+      return true if data_attribute_allowed?(attr_name)
+      return true if aria_attribute_allowed?(attr_name)
       return true if attr_name == 'is'
 
-      # DOM clobbering protection
-      if @config.sanitize_dom && value && !value.to_s.strip.empty? && %w[name id].include?(attr_name) &&
-          Attributes::DOM_CLOBBERING.include?(value.downcase)
-        return false
+      if attr_name == 'style'
+        return false unless attr_allowed || attr_allowed.nil?
+
+        return valid_style_attribute?(value)
       end
 
-      # URI validation - CRITICAL: must validate URI safety even if attribute is allowed
-      if uri_like?(attr_name) && value
-        val = value.to_s
-        leading_space_pattern = /\A[\s\u0085\u00a0\u1680\u180e\u2000-\u200b\u2028\u2029\u205f\u3000]+/
-        trailing_space_pattern = /[\s\u0085\u00a0\u1680\u180e\u2000-\u200b\u2028\u2029\u205f\u3000]+\z/
-        val = val.gsub(leading_space_pattern, '').gsub(trailing_space_pattern, '')
-        value.replace(val) if value.respond_to?(:replace) && value != val
-        return false if val.match?(/[\x00-\x1f\x7f]/)
+      return false if @config.sanitize_dom && dom_clobbering_attribute?(attr_name, value)
 
-        decoded = begin
-          URI.decode_www_form_component(val)
-        rescue StandardError
-          val
-        end
-        return false if @config.allowed_uri_regexp && !val.match?(@config.allowed_uri_regexp)
+      return valid_uri_attribute?(tag_name, attr_name, value, attr_allowed) if uri_like?(attr_name) && value
 
-        # For URI attributes, check if it's allowed and has valid URI
-        uri_allowed = attr_allowed.nil? || attr_allowed # default to allowed if not explicitly set
-        return false if decoded.match?(Expressions::IS_SCRIPT_OR_DATA)
+      return attr_allowed if [true, false].include?(attr_allowed)
 
-        if decoded.match?(/^data:/i)
-          return true if uri_allowed && @config.allow_data_uri && data_uri_tags.include?(tag_name)
-
-          return false
-        end
-
-        return true if uri_allowed && decoded.match?(Expressions::IS_ALLOWED_URI)
-        return true if uri_allowed && @config.allow_unknown_protocols && !decoded.match?(Expressions::IS_SCRIPT_OR_DATA)
-
-        return false # Reject invalid URIs or non-allowed URI attributes
-      end
-
-      # For non-URI attributes, return based on whether attribute is allowed
-      return attr_allowed if attr_allowed == true || attr_allowed == false
-
-      # Default permissive checks (when no explicit allowed list is set)
+      # Default permissive checks
       return true if @config.additional_attributes&.include?(attr_name)
-      return true if @config.allow_data_attributes && attr_name.match?(Expressions::DATA_ATTR)
-      return true if @config.allow_aria_attributes && attr_name.match?(Expressions::ARIA_ATTR)
 
-      # Final fallback - if allowed_attributes is nil, use default behavior
-      if @config.allow_unknown_protocols && value && !value.match?(Expressions::IS_SCRIPT_OR_DATA)
-        return false if value.match?(/^data:/i) && !@config.allow_data_uri
-
-        return true
-      end
-
-      false
+      allow_unknown_protocols_fallback?(value)
     end
 
     # Checks if an attribute name is URI-like
@@ -840,6 +674,338 @@ module Scrubber
       return unless hooks
 
       hooks.each { |h| h.call(node, data, @config) }
+    end
+
+    # Helper methods for sanitize_element
+
+    # Handles the deprecated isindex element by converting it to a form
+    #
+    # @param node [Nokogiri::XML::Element] the element node
+    # @param tag_name [String] the tag name
+    # @return [Boolean] true if handled (removed/replaced), false otherwise
+    def handle_isindex(node, tag_name)
+      return false unless tag_name == 'isindex'
+
+      replacement = build_isindex_replacement(node)
+      node.add_next_sibling(replacement) if replacement
+      @removed << { element: node }
+      node.remove
+      true
+    end
+
+    # Removes elements that are dangerous in MathML/SVG contexts
+    #
+    # @param node [Nokogiri::XML::Element] the element node
+    # @return [Boolean] true if removed, false otherwise
+    def handle_dangerous_math_svg(node)
+      return false unless dangerous_in_math_svg?(node)
+
+      @removed << { element: node }
+      node.remove
+      true
+    end
+
+    # Checks and handles element namespaces
+    #
+    # @param node [Nokogiri::XML::Element] the element node
+    # @return [Boolean] true if removed due to invalid namespace, false otherwise
+    def handle_namespace_check(node)
+      return false unless node.namespace && node.namespace.href
+      return false if ['http://www.w3.org/1999/xhtml', 'http://www.w3.org/2000/svg', 'http://www.w3.org/1998/Math/MathML'].include?(node.namespace.href)
+
+      node.children.to_a.each { |child| node.add_previous_sibling(child) } if @config.keep_content
+      @removed << { element: node }
+      node.remove
+      true
+    end
+
+    # Handles elements with namespace prefixes
+    #
+    # @param node [Nokogiri::XML::Element] the element node
+    # @param tag_name [String] the tag name
+    # @return [Boolean] true if handled (removed), false otherwise
+    def handle_prefixed_element(node, tag_name)
+      return false unless tag_name.include?(':')
+
+      prefix = tag_name.split(':').first.downcase
+      if %w[xml xmlns].include?(prefix)
+        if @config.keep_content
+          text_nodes = []
+          node.traverse { |n| text_nodes << n if n.text? }
+          text_nodes.each { |text_node| node.add_previous_sibling(text_node.dup) }
+        end
+        @removed << { element: node }
+        node.remove
+        return true
+      end
+
+      node.children.to_a.each { |child| node.add_previous_sibling(child) } if @config.keep_content
+      @removed << { element: node }
+      node.remove
+      true
+    end
+
+    # Handles elements that are not allowed by the configuration
+    #
+    # @param node [Nokogiri::XML::Element] the element node
+    # @param tag_name [String] the tag name
+    def handle_disallowed_element(node, tag_name)
+      replaced_children = false
+      if @config.keep_content && !forbidden_content?(tag_name) && !@config.allowed_tags
+        if node.children.any?
+          node.children.to_a.each { |child| node.add_previous_sibling(child) }
+          replaced_children = true
+        else
+          node.remove
+        end
+      elsif @config.allowed_tags && node.children.any?
+        node.add_next_sibling(Nokogiri::XML::Text.new(' ', node.document))
+      end
+      @removed << { element: node }
+      node.remove unless replaced_children
+    end
+
+    # Removes elements with VML namespace
+    #
+    # @param node [Nokogiri::XML::Element] the element node
+    def handle_vml_namespace(node)
+      return unless node['xmlns'] && node['xmlns'].match?(/vml/i)
+
+      @removed << { element: node }
+      node.remove
+    end
+
+    # Helper methods for sanitize_attributes
+
+    # Normalizes attribute name handling namespaces
+    #
+    # @param name [String] attribute name
+    # @param attr [Nokogiri::XML::Attr] attribute object
+    # @return [String] normalized attribute name
+    def normalize_attribute_name(name, attr)
+      if attr.namespace&.prefix == 'xmlns'
+        name == 'xmlns' ? 'xmlns' : "xmlns:#{transform_case(name)}"
+      else
+        transform_case(name)
+      end
+    end
+
+    # Handles the 'is' attribute by clearing its value
+    #
+    # @param attr [Nokogiri::XML::Attr] attribute object
+    # @param lc_name [String] lowercased attribute name
+    def handle_is_attribute(attr, lc_name)
+      return unless lc_name == 'is'
+
+      attr.value = ''
+    end
+
+    # Adds xlink namespace definition if needed
+    #
+    # @param node [Nokogiri::XML::Element] the element node
+    # @param lc_name [String] lowercased attribute name
+    def handle_xlink_namespace_definition(node, lc_name)
+      return unless lc_name.start_with?('xlink:')
+
+      begin
+        node.add_namespace_definition('xlink', 'http://www.w3.org/1999/xlink')
+      rescue StandardError
+        nil
+      end
+    end
+
+    # Checks if a removed attribute was dangerous enough to warrant removing the element
+    #
+    # @param lc_name [String] lowercased attribute name
+    # @param tag_name [String] tag name
+    # @return [Boolean] true if dangerous
+    def dangerous_attribute_removed?(lc_name, tag_name)
+      %w[href content].include?(lc_name) && %w[meta link].include?(tag_name)
+    end
+
+    # Ensures img tags have an alt attribute if allowed
+    #
+    # @param node [Nokogiri::XML::Element] the element node
+    # @param tag_name [String] tag name
+    def ensure_alt_attribute(node, tag_name)
+      return unless tag_name == 'img' && @config.allowed_attributes_per_tag.is_a?(Hash)
+
+      allowed = @config.allowed_attributes_per_tag['img']
+      node['alt'] = '' if allowed&.include?('alt') && !node.key?('alt')
+    end
+
+    # Ensures xlink namespace is present if needed
+    #
+    # @param node [Nokogiri::XML::Element] the element node
+    def ensure_xlink_namespace(node)
+      return if node['xmlns:xlink']
+
+      node['xmlns:xlink'] = 'http://www.w3.org/1999/xlink'
+      begin
+        node.add_namespace_definition('xlink', 'http://www.w3.org/1999/xlink')
+      rescue StandardError
+        nil
+      end
+    end
+
+    # Helper methods for valid_attribute?
+
+    # Checks if an attribute is explicitly forbidden
+    #
+    # @param attr_name [String] attribute name
+    # @return [Boolean] true if forbidden
+    def forbidden_attribute?(attr_name)
+      @config.forbidden_attributes&.include?(attr_name)
+    end
+
+    # Checks if an attribute is inherently dangerous
+    #
+    # @param attr_name [String] attribute name
+    # @return [Boolean] true if dangerous
+    def dangerous_attribute?(attr_name)
+      Attributes::DANGEROUS.any? { |d| attr_name.match?(/#{d}/i) }
+    end
+
+    # Checks if an attribute is allowed for a specific tag
+    #
+    # @param tag_name [String] tag name
+    # @param attr_name [String] attribute name
+    # @return [Boolean, nil] true/false if determined, nil if no rule found
+    def attribute_allowed?(tag_name, attr_name)
+      if @config.allowed_attributes_per_tag.is_a?(Hash)
+        per_tag_attrs = @config.allowed_attributes_per_tag[tag_name]
+        return per_tag_attrs.map { |a| transform_case(a) }.include?(attr_name) if per_tag_attrs
+      end
+
+      return check_global_allowed_attributes(attr_name) unless @config.allowed_attributes.nil?
+
+      check_default_allowed_attributes(tag_name, attr_name)
+    end
+
+    # Checks global allowed attributes list
+    #
+    # @param attr_name [String] attribute name
+    # @return [Boolean] true if allowed
+    def check_global_allowed_attributes(attr_name)
+      allowed = @config.allowed_attributes.dup.map { |a| transform_case(a) }
+      allowed.concat(@config.additional_attributes&.map { |a| transform_case(a) }) if @config.additional_attributes
+      allowed.include?(attr_name)
+    end
+
+    # Checks default allowed attributes based on tag type
+    #
+    # @param tag_name [String] tag name
+    # @param attr_name [String] attribute name
+    # @return [Boolean, nil] true if allowed, nil otherwise
+    def check_default_allowed_attributes(tag_name, attr_name)
+      html_attrs = @html_attrs ||= Attributes::HTML.map { |a| transform_case(a) }.to_set
+      svg_attrs = @svg_attrs ||= (Attributes::SVG + Attributes::XML).map { |a| transform_case(a) }.to_set
+      math_attrs = @math_attrs ||= (Attributes::MATH_ML + Attributes::XML).map { |a| transform_case(a) }.to_set
+
+      @html_tags_set ||= Tags::HTML.map { |t| transform_case(t) }.to_set
+      @svg_tags_set ||= (Tags::SVG + Tags::SVG_FILTERS).map { |t| transform_case(t) }.to_set
+      @math_tags_set ||= Tags::MATH_ML.map { |t| transform_case(t) }.to_set
+
+      is_svg = @svg_tags_set.include?(tag_name)
+      is_math = @math_tags_set.include?(tag_name)
+      is_html = @html_tags_set.include?(tag_name)
+
+      # Default to HTML if not recognized as standard tag but allowed
+      is_html = true if !is_svg && !is_math
+
+      attr_allowed = false
+      attr_allowed ||= svg_attrs.include?(attr_name) if is_svg
+      attr_allowed ||= math_attrs.include?(attr_name) if is_math
+      attr_allowed ||= html_attrs.include?(attr_name) if is_html
+      attr_allowed ? true : nil
+    end
+
+    # Checks if data attributes are allowed
+    #
+    # @param attr_name [String] attribute name
+    # @return [Boolean] true if allowed
+    def data_attribute_allowed?(attr_name)
+      @config.allow_data_attributes && attr_name.match?(Expressions::DATA_ATTR)
+    end
+
+    # Checks if ARIA attributes are allowed
+    #
+    # @param attr_name [String] attribute name
+    # @return [Boolean] true if allowed
+    def aria_attribute_allowed?(attr_name)
+      @config.allow_aria_attributes && attr_name.match?(Expressions::ARIA_ATTR)
+    end
+
+    # Validates style attribute value
+    #
+    # @param value [String] attribute value
+    # @return [Boolean] true if valid
+    def valid_style_attribute?(value)
+      return false if value && unsafe_inline_style?(value.to_s)
+
+      true
+    end
+
+    # Checks for DOM clobbering via attributes
+    #
+    # @param attr_name [String] attribute name
+    # @param value [String] attribute value
+    # @return [Boolean] true if clobbering detected
+    def dom_clobbering_attribute?(attr_name, value)
+      value && !value.to_s.strip.empty? && %w[name id].include?(attr_name) &&
+        Attributes::DOM_CLOBBERING.include?(value.downcase)
+    end
+
+    # Validates URI attributes
+    #
+    # @param tag_name [String] tag name
+    # @param _attr_name [String] attribute name (unused)
+    # @param value [String] attribute value
+    # @param attr_allowed [Boolean] whether attribute is allowed
+    # @return [Boolean] true if valid
+    def valid_uri_attribute?(tag_name, _attr_name, value, attr_allowed)
+      val = value.to_s
+      leading_space_pattern = /\A[\s\u0085\u00a0\u1680\u180e\u2000-\u200b\u2028\u2029\u205f\u3000]+/
+      trailing_space_pattern = /[\s\u0085\u00a0\u1680\u180e\u2000-\u200b\u2028\u2029\u205f\u3000]+\z/
+      val = val.gsub(leading_space_pattern, '').gsub(trailing_space_pattern, '')
+      value.replace(val) if value.respond_to?(:replace) && value != val
+      return false if val.match?(/[\x00-\x1f\x7f]/)
+
+      decoded = begin
+        URI.decode_www_form_component(val)
+      rescue StandardError
+        val
+      end
+      return false if @config.allowed_uri_regexp && !val.match?(@config.allowed_uri_regexp)
+
+      # For URI attributes, check if it's allowed and has valid URI
+      uri_allowed = attr_allowed.nil? || attr_allowed # default to allowed if not explicitly set
+      return false if decoded.match?(Expressions::IS_SCRIPT_OR_DATA)
+
+      if decoded.match?(/^data:/i)
+        return true if uri_allowed && @config.allow_data_uri && data_uri_tags.include?(tag_name)
+
+        return false
+      end
+
+      return true if uri_allowed && decoded.match?(Expressions::IS_ALLOWED_URI)
+      return true if uri_allowed && @config.allow_unknown_protocols && !decoded.match?(Expressions::IS_SCRIPT_OR_DATA)
+
+      false # Reject invalid URIs or non-allowed URI attributes
+    end
+
+    # Fallback check for unknown protocols
+    #
+    # @param value [String] attribute value
+    # @return [Boolean] true if allowed
+    def allow_unknown_protocols_fallback?(value)
+      if @config.allow_unknown_protocols && value && !value.match?(Expressions::IS_SCRIPT_OR_DATA)
+        return false if value.match?(/^data:/i) && !@config.allow_data_uri
+
+        return true
+      end
+
+      false
     end
   end
 
