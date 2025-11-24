@@ -11,7 +11,7 @@ GIT
 PATH
   remote: .
   specs:
-    scrubber (0.7.0)
+    dandruff (0.8.0)
       nokogiri (~> 1.10)
 
 GEM
@@ -132,11 +132,11 @@ PLATFORMS
 
 DEPENDENCIES
   benchmark (~> 0.5)
+  dandruff!
   kuyio-rubocop!
   rake (~> 13.0)
   rspec (~> 3.0)
   rubocop (~> 1.21)
-  scrubber!
 
 BUNDLED WITH
    2.7.2

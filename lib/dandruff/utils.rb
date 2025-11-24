@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-module Scrubber
-  # Utility functions for the Scrubber sanitizer
+module Dandruff
+  # Utility functions for the Dandruff sanitizer
   module Utils
     module_function
 

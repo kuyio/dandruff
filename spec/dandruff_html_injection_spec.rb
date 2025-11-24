@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 require 'rspec'
-require 'scrubber'
+require 'dandruff'
 
-RSpec.describe Scrubber do
+RSpec.describe Dandruff do
   describe 'HTML Injection and Bypass Techniques' do
     describe 'tag closing attacks' do
       it 'prevents tag closing injection' do

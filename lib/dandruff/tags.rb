@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Scrubber
+module Dandruff
   # Tag allowlists for HTML sanitization
   #
   # This module defines comprehensive tag allowlists for different content types.
@@ -9,8 +9,8 @@ module Scrubber
   # security model and regularly updated to reflect web standards.
   #
   # @example Using tag lists in configuration
-  #   scrubber.configure do |config|
-  #     config.allowed_tags = Scrubber::Tags::MINIMAL_HTML
+  #   dandruff.configure do |config|
+  #     config.allowed_tags = Dandruff::Tags::MINIMAL_HTML
   #   end
   #
   # @see Config Configuration class that uses these tag lists
@@ -28,8 +28,8 @@ module Scrubber
     # **Security:** Minimal surface area, excludes all form elements, scripts, and media
     #
     # @example Minimal blog comments
-    #   scrubber.configure do |config|
-    #     config.allowed_tags = Scrubber::Tags::MINIMAL_HTML
+    #   dandruff.configure do |config|
+    #     config.allowed_tags = Dandruff::Tags::MINIMAL_HTML
     #   end
     MINIMAL_HTML = %w[
       a b blockquote br code div em h1 h2 h3 h4 h5 h6 i img li ol p pre span strong table tbody td th thead tr ul
@@ -51,8 +51,8 @@ module Scrubber
     #
     # @example Default rich content
     #   # This is used automatically when no allowed_tags are specified
-    #   scrubber = Scrubber.new
-    #   clean = scrubber.sanitize(html) # Uses HTML allowlist
+    #   dandruff = Dandruff.new
+    #   clean = dandruff.sanitize(html) # Uses HTML allowlist
     HTML = %w[
       a abbr address area article aside audio b bdi bdo blockquote body br button canvas caption cite code
       col colgroup data datalist dd del details dfn dialog div dl dt em embed fieldset figcaption figure footer form
@@ -76,7 +76,7 @@ module Scrubber
     # mXSS attacks via SVG are prevented through attribute sanitization.
     #
     # @example SVG icons and graphics
-    #   scrubber.configure do |config|
+    #   dandruff.configure do |config|
     #     config.use_profiles = { html: true, svg: true }
     #   end
     SVG = %w[svg g path rect circle ellipse line polyline polygon text tspan textPath marker pattern defs desc mask
@@ -95,7 +95,7 @@ module Scrubber
     # cannot execute scripts but can be used for sophisticated visual rendering.
     #
     # @example SVG with filters
-    #   scrubber.configure do |config|
+    #   dandruff.configure do |config|
     #     config.use_profiles = { svg: true, svg_filters: true }
     #   end
     SVG_FILTERS = %w[
@@ -116,7 +116,7 @@ module Scrubber
     # with MathML namespace confusion.
     #
     # @example Mathematical content
-    #   scrubber.configure do |config|
+    #   dandruff.configure do |config|
     #     config.use_profiles = { html: true, math_ml: true }
     #   end
     MATH_ML = %w[
@@ -141,7 +141,7 @@ module Scrubber
     # per-tag attribute restrictions.
     #
     # @example Email content sanitization
-    #   scrubber.configure do |config|
+    #   dandruff.configure do |config|
     #     config.use_profiles = { html_email: true }
     #   end
     HTML_EMAIL = (HTML + %w[

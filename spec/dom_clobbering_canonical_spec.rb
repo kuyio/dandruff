@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require 'rspec'
-require 'scrubber'
+require 'dandruff'
 
 RSpec.describe 'DOM clobbering canonical denylist' do
   it 'includes the canonical identifier list' do
@@ -10,7 +10,7 @@ RSpec.describe 'DOM clobbering canonical denylist' do
       attributes nodevalue innerhtml outerhtml localname documenturi srcdoc url
       createelement renamenode appendchild insertbefore replacechild removechild normalize clonenode
     ]
-    actual = Scrubber::Attributes::DOM_CLOBBERING.map(&:downcase)
+    actual = Dandruff::Attributes::DOM_CLOBBERING.map(&:downcase)
     expect(actual).to include(*canonical)
   end
 end

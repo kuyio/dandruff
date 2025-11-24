@@ -1,5 +1,15 @@
 ## [Unreleased]
  
+## [0.8.0] - 2025-11-24
+
+### Changed
+- **BREAKING**: Renamed library from `scrubber` to `dandruff`.
+- **BREAKING**: Renamed main module from `Scrubber` to `Dandruff`.
+- **BREAKING**: Renamed all files and directories to match new namespace.
+- Added `Dandruff.scrub` alias for `Dandruff.sanitize`.
+- Full YARD documentation
+- Expanded README with more examples and documentation
+
 ## [0.7.0] - 2025-11-23
 
 ### Fixed
@@ -49,13 +59,11 @@
 - Added `minimal_profile` option to use an HTML-only allowlist (SVG/MathML off by default when enabled) and drop document wrappers unless explicitly allowed.
 - CSS tests expanded for nested/escaped `@import`; URI parsing tightened to reject leading whitespace/control characters.
 - Inline styles now parsed into allowed declarations with protocol checks; unsafe values drop the entire attribute.
-- Scrubber now uses instance-based configuration (`Scrubber.new(config)`) instead of module-level global state; the module-level `Scrubber.sanitize` is a convenience wrapper that builds a fresh instance per call.
+- Dandruff now uses instance-based configuration (`Dandruff.new(config)`) instead of module-level global state; the module-level `Dandruff.sanitize` is a convenience wrapper that builds a fresh instance per call.
 - `use_profiles=` now resets and reapplies profile-derived config, fixing block-style configuration for `html_email` (preserves document elements/attributes even with `return_dom`).
 - HTML email profile now forces full-document parsing and preserves legacy margin attributes and backgrounds on row/table elements to improve email fidelity.
-
-## [Unreleased]
 
 ## [0.4.0] - 2025-11-20
 
 ### Added
-- Initial release of Scrubber
+- Initial public release of Scrubber

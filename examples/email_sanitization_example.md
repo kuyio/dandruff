@@ -1,6 +1,6 @@
 # HTML Email Sanitization Example
 
-This example demonstrates how to use Scrubber to safely sanitize HTML emails for display, protecting against XSS while preserving formatting.
+This example demonstrates how to use Dandruff to safely sanitize HTML emails for display, protecting against XSS while preserving formatting.
 
 ## Use Case
 
@@ -13,12 +13,12 @@ When displaying HTML emails from external sources in a web application, you need
 ## Implementation
 
 ```ruby
-require 'scrubber'
+require 'dandruff'
 
 class EmailSanitizer
   def self.sanitize_for_iframe(html_content)
-    # Configure Scrubber for email content
-    scrubber = Scrubber.new do |c|
+    # Configure Dandruff for email content
+    dandruff = Dandruff.new do |c|
       # Allow email-specific tags
       c.allowed_tags = [
         # Basic formatting
@@ -76,10 +76,10 @@ class EmailSanitizer
     end
 
     # Add hooks for additional security
-    add_email_security_hooks(scrubber)
+    add_email_security_hooks(dandruff)
 
     # Sanitize the email content
-    clean_html = scrubber.sanitize(html_content)
+    clean_html = dandruff.sanitize(html_content)
 
     # Post-process for iframe safety
     post_process_for_iframe(clean_html)
@@ -87,9 +87,9 @@ class EmailSanitizer
 
   private
 
-  def self.add_email_security_hooks(scrubber)
+  def self.add_email_security_hooks(dandruff)
     # Hook to sanitize URLs
-    scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
+    dandruff.add_hook(:upon_sanitize_attribute) do |node, data, config|
       case data[:attr_name]
       when 'href'
         # Block dangerous protocols
@@ -113,7 +113,7 @@ class EmailSanitizer
     end
 
     # Hook to process table elements
-    scrubber.add_hook(:before_sanitize_elements) do |node, data, config|
+    dandruff.add_hook(:before_sanitize_elements) do |node, data, config|
       # Remove tables with excessive nesting (potential DoS)
       if node.name == 'table'
         depth = count_table_depth(node)

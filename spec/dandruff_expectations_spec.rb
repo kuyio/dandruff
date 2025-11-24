@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require 'rspec'
-require 'scrubber'
+require 'dandruff'
 
 path = File.expand_path('fixtures/examples.rb', __dir__)
 # Fixture uses a top-level local (`examples = [...]`), so we eval to capture it.
@@ -17,15 +17,15 @@ NOKOGIRI_PARSING_DIFFERENCES = [
 ].freeze
 
 # rubocop:disable RSpec/RepeatedExample
-RSpec.describe 'Scrubber DOMPurify expectations' do
+RSpec.describe 'Dandruff DOMPurify expectations' do
   EXPECTATIONS.each_with_index do |example, index|
     example_id = index + 1
 
     if NOKOGIRI_PARSING_DIFFERENCES.include?(example_id)
       # Skip tests that rely on browser-specific HTML5 parsing behavior
-      # Scrubber's output is still safe, just structured differently than browsers would parse
+      # Dandruff's output is still safe, just structured differently than browsers would parse
       xit "#{example['title']} (#{example_id}) (skipped: Nokogiri parsing difference)" do
-        actual = Scrubber.sanitize(example['payload'])
+        actual = Dandruff.sanitize(example['payload'])
         expected = example['expected']
 
         if expected.is_a?(Array)
@@ -36,7 +36,7 @@ RSpec.describe 'Scrubber DOMPurify expectations' do
       end
     else
       it "#{example['title']} (#{example_id})" do
-        actual = Scrubber.sanitize(example['payload'])
+        actual = Dandruff.sanitize(example['payload'])
         expected = example['expected']
 
         if expected.is_a?(Array)

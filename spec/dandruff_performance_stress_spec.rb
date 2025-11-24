@@ -5,10 +5,10 @@ begin
 rescue LoadError
   # RSpec = nil
 end
-require_relative '../lib/scrubber'
+require_relative '../lib/dandruff'
 
 if defined?(RSpec) && RSpec
-  RSpec.describe Scrubber do
+  RSpec.describe Dandruff do
     describe 'Performance and Stress Tests' do
       describe 'large document processing' do
         it 'processes large documents efficiently' do
@@ -86,7 +86,7 @@ else
 
   start_time = Time.now
   large_doc = "<div>#{'<p>Test paragraph with <strong>bold</strong> and <em>italic</em> text.</p>' * 1000}</div>"
-  clean = Scrubber.sanitize(large_doc)
+  clean = Dandruff.sanitize(large_doc)
   ensure! { clean.include?('<p>Test paragraph') }
   ensure! { (Time.now - start_time) < 5.0 }
   puts 'Large document: passed'
@@ -94,7 +94,7 @@ else
   start_time = Time.now
   1000.times do |i|
     dirty = "<div>Document #{i} with <script>alert('xss')</script> and safe content</div>"
-    clean = Scrubber.sanitize(dirty)
+    clean = Dandruff.sanitize(dirty)
     ensure! { !clean.include?('<script') } # rubocop:disable Rails/NegateInclude
   end
   ensure! { (Time.now - start_time) < 10.0 }
@@ -108,7 +108,7 @@ else
   nested += 'Deep content'
   100.times { nested += '</span></div>' }
   nested += '</div>'
-  clean = Scrubber.sanitize(nested)
+  clean = Dandruff.sanitize(nested)
   ensure! { clean.include?('Deep content') }
   ensure! { (Time.now - start_time) < 5.0 }
   puts 'Complex nesting: passed'
@@ -116,7 +116,7 @@ else
   initial_objects = ObjectSpace.count_objects
   100.times do
     dirty = "<div>#{'<p>Content with <script>alert("xss")</script> and safe text</p>' * 100}</div>"
-    Scrubber.sanitize(dirty)
+    Dandruff.sanitize(dirty)
   end
   GC.start
   final_objects = ObjectSpace.count_objects

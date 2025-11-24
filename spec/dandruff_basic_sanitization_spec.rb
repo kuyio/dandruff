@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
 require 'rspec'
-require 'scrubber'
+require 'dandruff'
 
-RSpec.describe Scrubber do
-  let(:scrubber) { described_class.new }
+RSpec.describe Dandruff do
+  let(:dandruff) { described_class.new }
 
   describe '.sanitize' do
     it 'removes script tags' do
@@ -27,20 +27,20 @@ RSpec.describe Scrubber do
     end
 
     it 'handles empty input' do
-      expect(scrubber.sanitize(nil)).to eq('')
-      expect(scrubber.sanitize('')).to eq('')
+      expect(dandruff.sanitize(nil)).to eq('')
+      expect(dandruff.sanitize('')).to eq('')
     end
 
     it 'removes comments when safe_for_xml is true' do
       dirty = '<!-- malicious comment --><p>Safe content</p>'
-      clean = scrubber.sanitize(dirty, safe_for_xml: true)
+      clean = dandruff.sanitize(dirty, safe_for_xml: true)
       expect(clean).not_to include('<!--')
       expect(clean).to include('<p>Safe content</p>')
     end
 
     it 'handles template expressions when safe_for_templates is true' do
       dirty = '<p>{{ malicious }}</p><script>${dangerous()}</script>'
-      clean = scrubber.sanitize(dirty, safe_for_templates: true)
+      clean = dandruff.sanitize(dirty, safe_for_templates: true)
       expect(clean).to include('<p>  </p>')
       expect(clean).not_to include('{{ malicious }}')
       expect(clean).not_to include('${dangerous()}')
@@ -49,22 +49,22 @@ RSpec.describe Scrubber do
 
   describe '.valid_attribute?' do
     it 'validates attributes correctly' do
-      scrubber.set_config(allowed_attributes: ['class'])
-      expect(scrubber.send(:valid_attribute?, 'div', 'class', 'test')).to be true
-      expect(scrubber.send(:valid_attribute?, 'div', 'onclick', 'alert()')).to be false
+      dandruff.set_config(allowed_attributes: ['class'])
+      expect(dandruff.send(:valid_attribute?, 'div', 'class', 'test')).to be true
+      expect(dandruff.send(:valid_attribute?, 'div', 'onclick', 'alert()')).to be false
     end
   end
 
   describe 'profiles' do
     it 'supports HTML profile' do
-      scrubber.set_config(use_profiles: { html: true })
-      clean = scrubber.sanitize('<p><b>Bold</b></p>')
+      dandruff.set_config(use_profiles: { html: true })
+      clean = dandruff.sanitize('<p><b>Bold</b></p>')
       expect(clean).to include('<p><b>Bold</b></p>')
     end
 
     it 'supports SVG profile' do
-      scrubber.set_config(use_profiles: { svg: true })
-      clean = scrubber.sanitize('<svg><circle r="10"/></svg>')
+      dandruff.set_config(use_profiles: { svg: true })
+      clean = dandruff.sanitize('<svg><circle r="10"/></svg>')
       expect(clean).to include('<svg><circle r="10"></circle></svg>')
     end
   end
@@ -72,13 +72,13 @@ RSpec.describe Scrubber do
   describe 'data attributes' do
     it 'allows data attributes by default' do
       dirty = '<div data-test="value">Content</div>'
-      clean = scrubber.sanitize(dirty)
+      clean = dandruff.sanitize(dirty)
       expect(clean).to include('data-test="value"')
     end
 
     it 'can disable data attributes' do
       dirty = '<div data-test="value">Content</div>'
-      clean = scrubber.sanitize(dirty, allow_data_attr: false)
+      clean = dandruff.sanitize(dirty, allow_data_attr: false)
       expect(clean).not_to include('data-test')
     end
   end
@@ -86,13 +86,13 @@ RSpec.describe Scrubber do
   describe 'ARIA attributes' do
     it 'allows ARIA attributes by default' do
       dirty = '<div aria-label="test">Content</div>'
-      clean = scrubber.sanitize(dirty)
+      clean = dandruff.sanitize(dirty)
       expect(clean).to include('aria-label="test"')
     end
 
     it 'can disable ARIA attributes' do
       dirty = '<div aria-label="test">Content</div>'
-      clean = scrubber.sanitize(dirty, allow_aria_attr: false)
+      clean = dandruff.sanitize(dirty, allow_aria_attr: false)
       expect(clean).not_to include('aria-label')
     end
   end

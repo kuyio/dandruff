@@ -1,101 +1,78 @@
-# Scrubber
+# Dandruff
 
-**A robust Ruby HTML sanitizer providing comprehensive XSS protection with an idiomatic, developer-friendly API.**
+**Because your markup deserves a good shampoo.**
 
-Scrubber is built on the battle-tested security foundations of [DOMPurify](https://github.com/cure53/DOMPurify), bringing proven XSS defense to the Ruby ecosystem. Whether you're sanitizing user comments, rendering rich content, or processing HTML emails, Scrubber provides the security and flexibility you need.
+If you're scratching your head because of XSS and your HTML is flaking with `<script>alert('gotcha')</script>`, it's time to wash that mess out!
 
-## ✨ Key Features
 
-- 🛡️ **Comprehensive XSS Protection** - Defends against XSS, mXSS, DOM clobbering, and protocol injection
-- ⚙️ **Flexible Configuration** - Fine-grained control over tags, attributes, and sanitization behavior  
-- 📦 **Content Type Profiles** - Pre-configured settings for HTML, SVG, MathML, and HTML email
-- 🎣 **Hook System** - Extend sanitization with custom processing logic
-- 💎 **Developer-Friendly API** - Intuitive Ruby idioms with block-based configuration
-- ⚡ **Performance Optimized** - Efficient multi-pass sanitization with configurable limits
-- 🔒 **Battle-Tested** - Based on DOMPurify's proven security model
+```ruby
+clean_html = Dandruff.scrub(dirty_html)
+```
+
+## Introduction
+
+Dandruff is a Ruby HTML sanitizer providing comprehensive XSS protection with an idiomatic, developer-friendly API. It's built on the battle-tested security foundations of [DOMPurify](https://github.com/cure53/DOMPurify), bringing proven XSS defense to the Ruby ecosystem. Whether you're sanitizing user comments, rendering rich content, or processing HTML emails, Dandruff can help you keep your markup clean and secure.
+
+### Key Features
+
+- **Comprehensive XSS Protection** - Defends against XSS, mXSS, DOM clobbering, and protocol injection
+- **Flexible Configuration** - Fine-grained control over tags, attributes, and sanitization behavior  
+- **Content Type Profiles** - Pre-configured settings for HTML, SVG, MathML, and HTML email
+- **Hook System** - Extend sanitization with custom processing logic
+- **Developer-Friendly API** - Intuitive Ruby idioms with block-based configuration
+- **Performance Optimized** - Efficient multi-pass sanitization with configurable limits
+- **Battle-Tested** - Based on DOMPurify's proven security model
 
 ## 🚀 Quickstart
 
-Get up and running in 60 seconds:
-
-```ruby
-# 1. Add scrubber to your Gemfile
-gem 'scrubber', github: 'kuyio/scrubber'
-
-# 2. Run bundle install
-bundle install
-
-# 3. Sanitize HTML with default configuration
-scrubber = Scrubber.new
-clean_html = scrubber.sanitize('<script>alert("xss")</script><p>Safe content</p>')
-# => "<p>Safe content</p>"
-
-# 4. Configure for your use case
-scrubber = Scrubber.new do |config|
-  config.allowed_tags = ['p', 'strong', 'em', 'a']
-  config.allowed_attributes = ['href', 'class']
-end
-
-# 5. Sanitize an input string
-scrubber.sanitize('<p class="intro"><strong>Hello</strong> <a href="/about">world</a>!</p>')
-# => '<p class="intro"><strong>Hello</strong> <a href="/about">world</a>!</p>'
-```
-
-**That's it!** You're now protecting your application from XSS attacks. Read on to learn more about configuration and advanced usage.
-
-## 📦 Installation
-
-### Using Bundler (Recommended)
-
-Add to your `Gemfile`:
-
-```ruby
-gem 'scrubber'
-```
-
-Then run:
+Install the gem:
 
 ```bash
+gem install dandruff
+```
+
+or with Bundler:
+
+```ruby
+# in your Gemfile
+gem 'dandruff'
+
+# then run
 bundle install
 ```
 
-### Direct Installation
+Then in your controller or wherever you need to sanitize HTML:
 
-```bash
-gem install scrubber
+```ruby
+safe_comment = Dandruff.scrub(params[:comment], allowed_tags: ['p', 'strong', 'em'])
 ```
-
-### Requirements
-
-- **Ruby**: 2.7 or higher
-- **Nokogiri**: 1.12 or higher (automatically installed)
 
 ## ⚙️ Configuration
 
-Scrubber offers three ways to configure sanitization: block-based, direct configuration, and per-call options.
+Dandruff offers three ways to configure sanitization: block-based, direct configuration, and per-call options.
 
 ### Configuration Styles
 
 ```ruby
 # 1. Block-based configuration (recommended for instances)
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.allowed_tags = ['p', 'strong', 'em']
   config.allowed_attributes = ['class', 'href']
 end
 
 # 2. Direct configuration  
-scrubber = Scrubber.new
-scrubber.set_config(
+dandruff = Dandruff.new
+dandruff.set_config(
   allowed_tags: ['p', 'strong'],
   allowed_attributes: ['class']
 )
 
 # 3. Per-call configuration
-scrubber = Scrubber.new
-scrubber.sanitize(html, allowed_tags: ['p'], allowed_attributes: ['class'])
+dandruff = Dandruff.new
+dandruff.scrub(html, allowed_tags: ['p'], allowed_attributes: ['class'])
 
 # 4. Class method with configuration
-clean = Scrubber.sanitize(html, allowed_tags: ['p', 'strong'])
+clean = Dandruff.scrub(html, allowed_tags: ['p', 'strong'])
 ```
 
 ### Common Configuration Patterns
@@ -103,7 +80,7 @@ clean = Scrubber.sanitize(html, allowed_tags: ['p', 'strong'])
 #### Restrict to specific tags and attributes
 
 ```ruby
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.allowed_tags = ['p', 'strong', 'em', 'a']
   config.allowed_attributes = ['href', 'title']
 end
@@ -112,7 +89,7 @@ end
 #### Extend defaults instead of replacing
 
 ```ruby
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.additional_tags = ['custom-element']
   config.additional_attributes = ['data-custom-id']
 end
@@ -121,7 +98,7 @@ end
 #### Block specific tags or attributes
 
 ```ruby
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.forbidden_tags = ['script', 'iframe']
   config.forbidden_attributes = ['onclick', 'onerror']
 end
@@ -137,21 +114,21 @@ end
 
 ```ruby
 # Basic text formatting only
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.allowed_tags = ['p', 'br', 'strong', 'em', 'a']
   config.allowed_attributes = ['href']
   config.forbidden_attributes = ['onclick', 'onerror']
 end
 
 comment = params[:comment]
-safe_comment = scrubber.sanitize(comment)
+safe_comment = dandruff.scrub(comment)
 ```
 
 #### Sanitize Markdown-Generated HTML
 
 ```ruby
 # Allow rich formatting from Markdown
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.allowed_tags = [
     'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
     'p', 'br', 'strong', 'em', 'code', 'pre',
@@ -161,14 +138,14 @@ scrubber = Scrubber.new do |config|
 end
 
 html = markdown_renderer.render(params[:content])
-safe_html = scrubber.sanitize(html)
+safe_html = dandruff.scrub(html)
 ```
 
 #### Sanitize Blog Post Content
 
 ```ruby
 # Rich content with images
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.allowed_tags = [
     'p', 'br', 'strong', 'em', 'ul', 'ol', 'li',
     'h2', 'h3', 'blockquote', 'code', 'pre',
@@ -179,7 +156,7 @@ scrubber = Scrubber.new do |config|
 end
 
 post_html = params[:post][:content]
-safe_html = scrubber.sanitize(post_html)
+safe_html = dandruff.scrub(post_html)
 ```
 
 ### Intermediate Use Cases
@@ -190,22 +167,22 @@ Profiles are pre-configured sets of tags and attributes for common content types
 
 ```ruby
 # HTML content profile
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.use_profiles = { html: true }
 end
 
 # SVG graphics
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.use_profiles = { html: true, svg: true }
 end
 
 # Mathematical content  
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.use_profiles = { html: true, math_ml: true }
 end
 
 # Combine multiple profiles
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.use_profiles = { html: true, svg: true, math_ml: true }
 end
 ```
@@ -215,12 +192,12 @@ end
 HTML emails require special handling with legacy attributes:
 
 ```ruby
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.use_profiles = { html_email: true }
 end
 
 email_html = message.html_part.body.to_s
-safe_email = scrubber.sanitize(email_html)
+safe_email = dandruff.scrub(email_html)
 ```
 
 The `html_email` profile:
@@ -235,7 +212,7 @@ The `html_email` profile:
 Restrict which attributes are allowed on specific tags for maximum security:
 
 ```ruby
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.allowed_attributes_per_tag = {
     'a' => ['href', 'title', 'target'],
     'img' => ['src', 'alt', 'width', 'height'],
@@ -247,11 +224,11 @@ end
 
 # Only specified attributes allowed on each tag
 html = '<a href="/page" onclick="alert()">Link</a>'
-scrubber.sanitize(html)
+dandruff.scrub(html)
 # => '<a href="/page">Link</a>' (onclick removed)
 
 html = '<img src="pic.jpg" href="/bad">'
-scrubber.sanitize(html)
+dandruff.scrub(html)
 # => '<img src="pic.jpg">' (href removed from img)
 ```
 
@@ -263,24 +240,24 @@ scrubber.sanitize(html)
 
 ```ruby
 # Only allow HTTPS URLs from your domain
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.allowed_uri_regexp = /^https:\/\/(www\.)?example\.com\//
 end
 
 html = '<a href="https://example.com/safe">OK</a><a href="http://evil.com">Bad</a>'
-scrubber.sanitize(html)  
+dandruff.scrub(html)  
 # => '<a href="https://example.com/safe">OK</a><a>Bad</a>'
 ```
 
 #### Hook-Based Customization
 
-Hooks allow you to extend Scrubber's behavior:
+Hooks allow you to extend Dandruff's behavior:
 
 ```ruby
-scrubber = Scrubber.new
+dandruff = Dandruff.new
 
 # Custom attribute handling
-scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
+dandruff.add_hook(:upon_sanitize_attribute) do |node, data, config|
   tag_name = data[:tag_name]
   attr_name = data[:attr_name]
   
@@ -296,13 +273,13 @@ scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
 end
 
 # Element processing
-scrubber.add_hook(:upon_sanitize_element) do |node, data, config|
+dandruff.add_hook(:upon_sanitize_element) do |node, data, config|
   # Log removed elements
   puts "Processing #{data[:tag_name]} element"
 end
 
 html = '<div data-safe-user-id="123" DATA-KEY="ABC" id="MyID">Content</div>'
-scrubber.sanitize(html)
+dandruff.scrub(html)
 # => '<div data-safe-user-id="123" id="myid">Content</div>'
 ```
 
@@ -319,12 +296,12 @@ Available hooks:
 Remove template expressions when sanitizing user-submitted content:
 
 ```ruby
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.safe_for_templates = true
 end
 
 html = '<div>{{user.name}} - <%= admin_link %> - ${secret}</div>'
-scrubber.sanitize(html)
+dandruff.scrub(html)
 # => '<div>   -    -  </div>' (template expressions removed)
 ```
 
@@ -338,12 +315,12 @@ Removes:
 Protect against mutation-based XSS (mXSS):
 
 ```ruby
-scrubber = Scrubber.new do |config|
-  config.sanitize_until_stable = true  # default
+dandruff = Dandruff.new do |config|
+  config.scrub_until_stable = true  # default
   config.mutation_max_passes = 2       # default
 end
 
-# Scrubber will re-sanitize until output is stable
+# Dandruff will re-sanitize until output is stable
 # or max passes reached, preventing mXSS attacks
 ```
 
@@ -352,19 +329,19 @@ end
 For further processing with Nokogiri:
 
 ```ruby
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.return_dom = true
 end
 
-doc = scrubber.sanitize(html)
+doc = dandruff.scrub(html)
 # => Nokogiri::HTML::Document
 
 # Or return a fragment
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.return_dom_fragment = true
 end
 
-fragment = scrubber.sanitize(html)
+fragment = dandruff.scrub(html)
 # => Nokogiri::HTML::DocumentFragment
 ```
 
@@ -411,9 +388,9 @@ Complete list of configuration options with defaults and security implications:
 
 #### Core Methods
 
-##### `Scrubber.new(config = nil, &block)` → `Sanitizer`
+##### `Dandruff.new(config = nil, &block)` → `Sanitizer`
 
-Creates a new Scrubber instance.
+Creates a new Dandruff instance.
 
 **Parameters:**
 - `config` (Hash, Config) - Optional configuration hash or Config object
@@ -423,12 +400,12 @@ Creates a new Scrubber instance.
 
 **Example:**
 ```ruby
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.allowed_tags = ['p', 'strong']
 end
 ```
 
-##### `scrubber.sanitize(dirty_html, config = {})` → `String` or `Nokogiri::XML::Document`
+##### `dandruff.scrub(dirty_html, config = {})` → `String` or `Nokogiri::XML::Document`
 
 Sanitizes HTML string or Nokogiri node.
 
@@ -440,11 +417,11 @@ Sanitizes HTML string or Nokogiri node.
 
 **Example:**
 ```ruby
-clean = scrubber.sanitize('<script>xss</script><p>Safe</p>')
+clean = dandruff.scrub('<script>xss</script><p>Safe</p>')
 # => "<p>Safe</p>"
 ```
 
-##### `Scrubber.sanitize(dirty_html, config = {})` → `String`
+##### `Dandruff.scrub(dirty_html, config = {})` → `String`
 
 Class method for one-off sanitization.
 
@@ -456,38 +433,38 @@ Class method for one-off sanitization.
 
 **Example:**
 ```ruby
-clean = Scrubber.sanitize(html, allowed_tags: ['p'])
+clean = Dandruff.scrub(html, allowed_tags: ['p'])
 ```
 
 #### Configuration Methods
 
-##### `scrubber.configure { |config| ... }` → `Sanitizer`
+##### `dandruff.configure { |config| ... }` → `Sanitizer`
 
-Configures the scrubber instance using a block.
+Configures the dandruff instance using a block.
 
 **Example:**
 ```ruby
-scrubber.configure do |config|
+dandruff.configure do |config|
   config.allowed_tags = ['p', 'strong']
 end
 ```
 
-##### `scrubber.set_config(config_hash)` → `Config`
+##### `dandruff.set_config(config_hash)` → `Config`
 
 Sets configuration directly with a hash.
 
 **Example:**
 ```ruby
-scrubber.set_config(allowed_tags: ['p'], allowed_attributes: ['class'])
+dandruff.set_config(allowed_tags: ['p'], allowed_attributes: ['class'])
 ```
 
-##### `scrubber.clear_config` → `Config`
+##### `dandruff.clear_config` → `Config`
 
 Resets to default configuration.
 
 #### Hook Methods
 
-##### `scrubber.add_hook(entry_point, &block)` → `void`
+##### `dandruff.add_hook(entry_point, &block)` → `void`
 
 Adds a hook function.
 
@@ -497,26 +474,26 @@ Adds a hook function.
 
 **Example:**
 ```ruby
-scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
+dandruff.add_hook(:upon_sanitize_attribute) do |node, data, config|
   data[:keep_attr] = true if data[:attr_name] == 'data-safe'
 end
 ```
 
-##### `scrubber.remove_hook(entry_point, hook_function = nil)` → `Proc` or `nil`
+##### `dandruff.remove_hook(entry_point, hook_function = nil)` → `Proc` or `nil`
 
 Removes specific hook or last hook for an entry point.
 
-##### `scrubber.remove_all_hooks` → `Hash`
+##### `dandruff.remove_all_hooks` → `Hash`
 
 Removes all hooks.
 
 #### Utility Methods
 
-##### `scrubber.supported?` → `Boolean`
+##### `dandruff.supported?` → `Boolean`
 
 Checks if required dependencies (Nokogiri) are available.
 
-##### `scrubber.removed` → `Array`
+##### `dandruff.removed` → `Array`
 
 Gets list of elements/attributes removed during last sanitization.
 
@@ -533,7 +510,7 @@ Gets list of elements/attributes removed during last sanitization.
 **Use for:** Standard web content, blog posts, documentation
 
 ```ruby
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.use_profiles = { html: true }
 end
 ```
@@ -547,7 +524,7 @@ end
 **Use for:** Inline SVG graphics, icons, diagrams
 
 ```ruby
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.use_profiles = { html: true, svg: true }
 end
 ```
@@ -561,7 +538,7 @@ end
 **Use for:** SVG with visual effects
 
 ```ruby
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.use_profiles = { svg: true, svg_filters: true }
 end
 ```
@@ -575,7 +552,7 @@ end
 **Use for:** Scientific documents, mathematical content
 
 ```ruby
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.use_profiles = { html: true, math_ml: true }
 end
 ```
@@ -600,7 +577,7 @@ end
 **Use for:** HTML email rendering
 
 ```ruby
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.use_profiles = { html_email: true }
 end
 ```
@@ -609,7 +586,7 @@ end
 
 ### Threat Model
 
-Scrubber defends against multiple attack vectors:
+Dandruff defends against multiple attack vectors:
 
 #### XSS (Cross-Site Scripting)
 
@@ -622,13 +599,13 @@ Scrubber defends against multiple attack vectors:
 
 ```ruby
 # Attack blocked
-scrubber.sanitize('<script>alert("xss")</script>')
+dandruff.scrub('<script>alert("xss")</script>')
 # => ""
 
-scrubber.sanitize('<img src="javascript:alert(1)">')
+dandruff.scrub('<img src="javascript:alert(1)">')
 # => "<img>"
 
-scrubber.sanitize('<a onclick="alert(1)">Click</a>')
+dandruff.scrub('<a onclick="alert(1)">Click</a>')
 # => "<a>Click</a>"
 ```
 
@@ -643,8 +620,8 @@ scrubber.sanitize('<a onclick="alert(1)">Click</a>')
 
 ```ruby
 # mXSS prevented through multi-pass sanitization
-scrubber = Scrubber.new do |config|
-  config.sanitize_until_stable = true  # default
+dandruff = Dandruff.new do |config|
+  config.scrub_until_stable = true  # default
   config.mutation_max_passes = 2
 end
 ```
@@ -659,10 +636,10 @@ end
 
 ```ruby
 # DOM clobbering blocked
-scrubber.sanitize('<form name="document">')
+dandruff.scrub('<form name="document">')
 # => "<form></form>" (name removed)
 
-scrubber.sanitize('<img id="location">')
+dandruff.scrub('<img id="location">')
 # => "<img>" (id removed)
 ```
 
@@ -676,10 +653,10 @@ scrubber.sanitize('<img id="location">')
 - Custom protocol validation with `allowed_uri_regexp`
 
 ```ruby
-scrubber.sanitize('<a href="javascript:alert(1)">Click</a>')
+dandruff.scrub('<a href="javascript:alert(1)">Click</a>')
 # => "<a>Click</a>"
 
-scrubber.sanitize('<link href="vbscript:msgbox(1)">')
+dandruff.scrub('<link href="vbscript:msgbox(1)">')
 # => (link removed)
 ```
 
@@ -693,10 +670,10 @@ scrubber.sanitize('<link href="vbscript:msgbox(1)">')
 - Scans `<style>` tag content for unsafe patterns
 
 ```ruby
-scrubber.sanitize('<div style="expression(alert(1))"></div>')
+dandruff.scrub('<div style="expression(alert(1))"></div>')
 # => "<div></div>" (dangerous style removed)
 
-scrubber.sanitize('<div style="background: url(javascript:alert(1))"></div>')
+dandruff.scrub('<div style="background: url(javascript:alert(1))"></div>')
 # => "<div></div>" (dangerous style removed)
 ```
 
@@ -746,10 +723,10 @@ config.forbidden_attributes = [
 
 ```ruby
 # ✅ Good - default setting
-config.sanitize_dom = true
+config.scrub_dom = true
 
 # ⚠️ Only disable for sandboxed contexts (e.g., email rendering)
-config.sanitize_dom = false  # use with caution
+config.scrub_dom = false  # use with caution
 ```
 
 #### 6. Use Per-Tag Attribute Control
@@ -763,14 +740,14 @@ config.allowed_attributes_per_tag = {
 }
 ```
 
-#### 7. Keep Scrubber Updated
+#### 7. Keep Dandruff Updated
 
 ```ruby
 # Check your Gemfile.lock regularly
-bundle outdated scrubber
+bundle outdated dandruff
 
 # Update to latest version
-bundle safe update scrubber
+bundle safe update dandruff
 ```
 
 ### Recommended Configurations
@@ -778,7 +755,7 @@ bundle safe update scrubber
 #### Maximum Security (User Comments)
 
 ```ruby
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.allowed_tags = ['p', 'br', 'strong', 'em', 'a']
   config.allowed_attributes = ['href']
   config.forbidden_attributes = ['onclick', 'onerror', 'onload', 'style']
@@ -790,7 +767,7 @@ end
 #### Content Management System
 
 ```ruby
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.allowed_tags = [
     'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
     'p', 'br', 'strong', 'em', 'ul', 'ol', 'li',
@@ -806,7 +783,7 @@ end
 #### Rich Text Editor
 
 ```ruby
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.use_profiles = { html: true }
   config.forbidden_tags = ['script', 'iframe', 'object', 'embed']
   config.forbidden_attributes = ['on*']  # remove all event handlers
@@ -819,11 +796,11 @@ end
 
 ## ⚡ Performance
 
-Scrubber is optimized for performance while maintaining security.
+Dandruff is optimized for performance while maintaining security.
 
 ### Benchmarks
 
-Executed on Apple M1 Max via `ruby spec/scrubber_performance_spec.rb`:
+Executed on Apple M1 Max via `ruby spec/dandruff_performance_spec.rb`:
 
 | Input Size | Default Config | Strict Config | Throughput (Default) | Throughput (Strict) |
 |------------|----------------|---------------|----------------------|---------------------|
@@ -844,17 +821,17 @@ Executed on Apple M1 Max via `ruby spec/scrubber_performance_spec.rb`:
 
 ```ruby
 # ✅ Good - reuse configuration
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.allowed_tags = ['p', 'strong', 'em']
 end
 
 documents.each do |doc|
-  clean = scrubber.sanitize(doc)  # fast - config already set
+  clean = dandruff.scrub(doc)  # fast - config already set
 end
 
 # ❌ Slower - new config each time
 documents.each do |doc|
-  clean = Scrubber.sanitize(doc, allowed_tags: ['p', 'strong', 'em'])
+  clean = Dandruff.scrub(doc, allowed_tags: ['p', 'strong', 'em'])
 end
 ```
 
@@ -875,11 +852,11 @@ config.allowed_tags = nil
 Process multiple documents with the same instance:
 
 ```ruby
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   # ... configuration
 end
 
-cleaned_docs = documents.map { |doc| scrubber.sanitize(doc) }
+cleaned_docs = documents.map { |doc| dandruff.scrub(doc) }
 ```
 
 #### 4. Adjust Multi-Pass Limit
@@ -888,7 +865,7 @@ For trusted content, you can reduce passes:
 
 ```ruby
 # Faster but less secure - use only for pre-validated content
-config.sanitize_until_stable = false
+config.scrub_until_stable = false
 
 # Or reduce max passes
 config.mutation_max_passes = 1  # default is 2
@@ -900,7 +877,7 @@ If you need to process the output further:
 
 ```ruby
 config.return_dom = true
-doc = scrubber.sanitize(html)  # Returns Nokogiri document
+doc = dandruff.scrub(html)  # Returns Nokogiri document
 # ... further processing with Nokogiri
 ```
 
@@ -910,18 +887,18 @@ doc = scrubber.sanitize(html)  # Returns Nokogiri document
 
 ```ruby
 # Before (Rails)
-ActionController::Base.helpers.sanitize(html, tags: ['p', 'strong'])
+ActionController::Base.helpers.scrub(html, tags: ['p', 'strong'])
 
-# After (Scrubber)
-Scrubber.sanitize(html, allowed_tags: ['p', 'strong'])
+# After (Dandruff)
+Dandruff.scrub(html, allowed_tags: ['p', 'strong'])
 
 # Or create reusable instance
-@scrubber = Scrubber.new do |config|
+@dandruff = Dandruff.new do |config|
   config.allowed_tags = ['p', 'strong', 'em', 'a']
   config.allowed_attributes = ['href']
 end
 
-@scrubber.sanitize(html)
+@dandruff.scrub(html)
 ```
 
 ### From Loofah
@@ -930,14 +907,14 @@ end
 # Before (Loofah)
 Loofah.fragment(html).scrub!(:prune).to_s
 
-# After (Scrubber)
-Scrubber.sanitize(html, keep_content: false)
+# After (Dandruff)
+Dandruff.scrub(html, keep_content: false)
 
 # With specific tags
 Loofah.fragment(html).scrub!(:strip).to_s
 
-# Scrubber equivalent
-Scrubber.sanitize(html, allowed_tags: ['p', 'strong'])
+# Dandruff equivalent
+Dandruff.scrub(html, allowed_tags: ['p', 'strong'])
 ```
 
 ### From Sanitize Gem
@@ -946,14 +923,14 @@ Scrubber.sanitize(html, allowed_tags: ['p', 'strong'])
 # Before (Sanitize)
 Sanitize.fragment(html, elements: ['p', 'strong'])
 
-# After (Scrubber)
-Scrubber.sanitize(html, allowed_tags: ['p', 'strong'])
+# After (Dandruff)
+Dandruff.scrub(html, allowed_tags: ['p', 'strong'])
 
 # Custom config
 Sanitize.fragment(html, Sanitize::Config::RELAXED)
 
-# Scrubber profiles
-Scrubber.sanitize(html) do |config|
+# Dandruff profiles
+Dandruff.scrub(html) do |config|
   config.use_profiles = { html: true }
 end
 ```
@@ -976,35 +953,35 @@ See [COMPARISON.md](COMPARISON.md) for a detailed comparison with other Ruby HTM
 
 ## ❓ FAQ
 
-### How is Scrubber different from other sanitizers?
+### How is Dandruff different from other sanitizers?
 
-Scrubber brings DOMPurify's battle-tested security model to Ruby, with specific defenses against mXSS, DOM clobbering, and protocol injection that other Ruby sanitizers may not provide. It also offers per-tag attribute control and an extensible hook system.
+Dandruff brings DOMPurify's battle-tested security model to Ruby, with specific defenses against mXSS, DOM clobbering, and protocol injection that other Ruby sanitizers may not provide. It also offers per-tag attribute control and an extensible hook system.
 
-### Is Scrubber safe for user-generated content?
+### Is Dandruff safe for user-generated content?
 
-Yes! Scrubber is specifically designed for sanitizing untrusted user input. Use restrictive configurations for maximum security (see [Recommended Configurations](#recommended-configurations)).
+Yes! Dandruff is specifically designed for sanitizing untrusted user input. Use restrictive configurations for maximum security (see [Recommended Configurations](#recommended-configurations)).
 
-### Can I use Scrubber with Rails?
+### Can I use Dandruff with Rails?
 
-Absolutely! Scrubber works great with Rails:
+Absolutely! Dandruff works great with Rails:
 
 ```ruby
 # In your helper
 def sanitize_user_content(html)
-  @scrubber ||= Scrubber.new do |config|
+  @dandruff ||= Dandruff.new do |config|
     config.allowed_tags = ['p', 'strong', 'em', 'a']
     config.allowed_attributes = ['href']
   end
-  @scrubber.sanitize(html)
+  @dandruff.scrub(html)
 end
 ```
 
-### Does Scrubber work with HTML emails?
+### Does Dandruff work with HTML emails?
 
 Yes! Use the `html_email` profile:
 
 ```ruby
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.use_profiles = { html_email: true }
 end
 ```
@@ -1013,12 +990,12 @@ This includes legacy attributes and per-tag restrictions needed for email client
 
 ### What about performance?
 
-Scrubber processes ~300 KB/s with default config and ~3,000 KB/s with strict config on modern hardware. Reuse configuration instances for best performance. See [Performance](#performance) section.
+Dandruff processes ~300 KB/s with default config and ~3,000 KB/s with strict config on modern hardware. Reuse configuration instances for best performance. See [Performance](#performance) section.
 
 ### How do I allow custom elements?
 
 ```ruby
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.additional_tags = ['my-custom-element', 'web-component']
 end
 ```
@@ -1030,27 +1007,27 @@ Elements with hyphens are treated as custom elements by default.
 Yes, but they're sanitized for safety:
 
 ```ruby
-scrubber = Scrubber.new do |config|
+dandruff = Dandruff.new do |config|
   config.allowed_attributes = ['style']  # style is allowed by default
 end
 
 # Safe styles pass through
-scrubber.sanitize('<div style="color: red;">Text</div>')
+dandruff.scrub('<div style="color: red;">Text</div>')
 # => '<div style="color:red;">Text</div>'
 
 # Dangerous styles are removed
-scrubber.sanitize('<div style="expression(alert(1))">Text</div>')
+dandruff.scrub('<div style="expression(alert(1))">Text</div>')
 # => '<div>Text</div>'
 ```
 
 ### How do I debug what's being removed?
 
 ```ruby
-scrubber = Scrubber.new
-scrubber.sanitize(html)
+dandruff = Dandruff.new
+dandruff.scrub(html)
 
 # Check what was removed
-removed = scrubber.removed
+removed = dandruff.removed
 removed.each do |item|
   if item[:element]
     puts "Removed element: #{item[:element].name}"
@@ -1071,7 +1048,7 @@ end
 config.keep_content = true
 
 # Check if tags are in your allowlist
-puts scrubber.config.allowed_tags
+puts dandruff.config.allowed_tags
 
 # Use additional_tags instead of allowed_tags to extend defaults
 config.additional_tags = ['custom-tag']  # instead of replacing all
@@ -1083,7 +1060,7 @@ config.additional_tags = ['custom-tag']  # instead of replacing all
 
 ```ruby
 # Check which attributes are allowed
-puts scrubber.config.allowed_attributes
+puts dandruff.config.allowed_attributes
 
 # Use additional_attributes to extend
 config.additional_attributes = ['data-custom']
@@ -1129,7 +1106,7 @@ config.allowed_tags = ['p', 'strong', 'em']  # faster than nil/defaults
 config.mutation_max_passes = 1  # default is 2
 
 # Disable multi-pass for pre-validated content  
-config.sanitize_until_stable = false  # use with caution
+config.scrub_until_stable = false  # use with caution
 ```
 
 ## 🤝 Contributing
@@ -1140,8 +1117,8 @@ We welcome contributions! Here's how to get involved:
 
 ```bash
 # Clone the repository
-git clone https://github.com/kuyio/scrubber.git
-cd scrubber
+git clone https://github.com/kuyio/dandruff.git
+cd dandruff
 
 # Install dependencies
 bundle install
@@ -1169,7 +1146,7 @@ COVERAGE=true rake spec
 rspec spec/basic_sanitization_spec.rb
 
 # Performance tests
-ruby spec/scrubber_performance_spec.rb
+ruby spec/dandruff_performance_spec.rb
 ```
 
 ### Contribution Guidelines
@@ -1199,21 +1176,21 @@ Found a bug or have a feature request?
 1. **Search** existing issues to avoid duplicates
 2. **Include** relevant details:
    - Ruby version
-   - Scrubber version
+   - Dandruff version
    - Minimal reproduction code
    - Expected vs. actual behavior
 3. **Security issues**: Email security@kuyio.com instead of filing public issues
 
 ## 📄 License
 
-This gem is available as open source under the terms of the **Apache License 2.0** and **Mozilla Public License 2.0**.
+This gem is available as open source under the terms of the **MIT License**.
 
 ## 🙏 Acknowledgments
 
-Originally inspired by the excellent [DOMPurify](https://github.com/cure53/DOMPurify) JavaScript library by Cure53 and contributors. Scrubber brings DOMPurify's battle-tested security model to the Ruby ecosystem with an idiomatic Ruby API.
+Originally inspired by the excellent [DOMPurify](https://github.com/cure53/DOMPurify) JavaScript library by Cure53 and contributors. Dandruff brings DOMPurify's battle-tested security model to the Ruby ecosystem with an idiomatic Ruby API.
 
-Special thanks to all [contributors](https://github.com/kuyio/scrubber/graphs/contributors) who have helped make Scrubber better!
+Special thanks to all [contributors](https://github.com/kuyio/dandruff/graphs/contributors) who have helped make Dandruff better!
 
 ---
 
-**Made with ❤️ in Ottawa, Canada 🇨🇦** • [GitHub](https://github.com/kuyio/scrubber) • [Documentation](https://rubydoc.info/gems/scrubber)
+**Made with ❤️ in Ottawa, Canada 🇨🇦** • [GitHub](https://github.com/kuyio/dandruff) • [Documentation](https://rubydoc.info/gems/dandruff)

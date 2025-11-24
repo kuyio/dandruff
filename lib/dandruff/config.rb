@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-module Scrubber
-  # Configuration class for the Scrubber sanitizer
+module Dandruff
+  # Configuration class for the Dandruff sanitizer
   #
   # This class manages all configuration options for customizing HTML sanitization behavior.
   # It provides sensible security-focused defaults and allows fine-grained control through
@@ -9,16 +9,16 @@ module Scrubber
   # later through accessor methods.
   #
   # @example Basic configuration
-  #   config = Scrubber::Config.new(
+  #   config = Dandruff::Config.new(
   #     allowed_tags: ['p', 'strong', 'em'],
   #     allowed_attributes: ['class', 'href']
   #   )
   #
   # @example Using profiles
-  #   config = Scrubber::Config.new(use_profiles: { html: true, svg: true })
+  #   config = Dandruff::Config.new(use_profiles: { html: true, svg: true })
   #
   # @example Block configuration
-  #   scrubber = Scrubber.new do |config|
+  #   dandruff = Dandruff.new do |config|
   #     config.allowed_tags = ['p', 'a']
   #     config.forbidden_attributes = ['onclick']
   #   end

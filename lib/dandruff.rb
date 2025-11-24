@@ -4,16 +4,16 @@ require 'nokogiri'
 require 'set'
 require 'uri'
 
-require_relative 'scrubber/version'
-require_relative 'scrubber/config'
-require_relative 'scrubber/tags'
-require_relative 'scrubber/attributes'
-require_relative 'scrubber/expressions'
-require_relative 'scrubber/utils'
+require_relative 'dandruff/version'
+require_relative 'dandruff/config'
+require_relative 'dandruff/tags'
+require_relative 'dandruff/attributes'
+require_relative 'dandruff/expressions'
+require_relative 'dandruff/utils'
 
-# Scrubber - A robust HTML sanitizer for Ruby
+# Dandruff - A robust HTML sanitizer for Ruby
 #
-# Scrubber is a Ruby implementation inspired by DOMPurify, providing comprehensive XSS protection
+# Dandruff is a Ruby implementation inspired by DOMPurify, providing comprehensive XSS protection
 # by sanitizing HTML strings and removing malicious payloads. It's designed for excellent developer
 # experience while maintaining battle-tested security.
 #
@@ -30,28 +30,28 @@ require_relative 'scrubber/utils'
 # ## Quick Start
 #
 # @example Basic sanitization
-#   require 'scrubber'
+#   require 'dandruff'
 #
-#   scrubber = Scrubber.new
-#   clean = scrubber.sanitize('<script>alert("xss")</script><p>Safe content</p>')
+#   dandruff = Dandruff.new
+#   clean = dandruff.sanitize('<script>alert("xss")</script><p>Safe content</p>')
 #   # => "<p>Safe content</p>"
 #
 # @example Configure with block
-#   scrubber = Scrubber.new do |config|
+#   dandruff = Dandruff.new do |config|
 #     config.allowed_tags = ['p', 'strong', 'em', 'a']
 #     config.allowed_attributes = ['href', 'title', 'class']
 #   end
 #
 # @example Use convenience class method
-#   clean = Scrubber.sanitize(dirty_html, allowed_tags: ['p', 'strong'])
+#   clean = Dandruff.sanitize(dirty_html, allowed_tags: ['p', 'strong'])
 #
 # @example Profile-based configuration
-#   scrubber = Scrubber.new do |config|
+#   dandruff = Dandruff.new do |config|
 #     config.use_profiles = { html: true, svg: true }
 #   end
 #
 # @example Per-tag attribute control
-#   scrubber = Scrubber.new do |config|
+#   dandruff = Dandruff.new do |config|
 #     config.allowed_attributes_per_tag = {
 #       'a' => ['href', 'title'],
 #       'img' => ['src', 'alt', 'width', 'height']
@@ -59,8 +59,8 @@ require_relative 'scrubber/utils'
 #   end
 #
 # @example Custom hooks
-#   scrubber = Scrubber.new
-#   scrubber.add_hook(:upon_sanitize_attribute) do |node, data, config|
+#   dandruff = Dandruff.new
+#   dandruff.add_hook(:upon_sanitize_attribute) do |node, data, config|
 #     # Custom attribute processing
 #     if data[:attr_name] == 'data-safe'
 #       data[:keep_attr] = true
@@ -69,7 +69,7 @@ require_relative 'scrubber/utils'
 #
 # ## Security
 #
-# Scrubber protects against multiple attack vectors:
+# Dandruff protects against multiple attack vectors:
 # - **XSS**: Removes script tags, event handlers, javascript: URIs
 # - **mXSS**: Multi-pass sanitization prevents mutation-based attacks
 # - **DOM Clobbering**: Blocks dangerous id/name attribute values
@@ -77,11 +77,11 @@ require_relative 'scrubber/utils'
 # - **Namespace Confusion**: Prevents mXSS via SVG/MathML namespace attacks
 # - **CSS Injection**: Sanitizes inline styles and style tag content
 #
-# @see https://github.com/kuyio/scrubber GitHub repository
+# @see https://github.com/kuyio/dandruff GitHub repository
 # @see https://github.com/cure53/DOMPurify Original JavaScript implementation
 # @see Config Configuration options reference
 # @see Sanitizer Core sanitization engine
-module Scrubber
+module Dandruff
   class Error < StandardError; end
 
   # Main sanitizer class handling HTML sanitization logic
@@ -134,7 +134,7 @@ module Scrubber
       @hooks = create_hooks_map
     end
 
-    # Checks if the current environment supports Scrubber functionality
+    # Checks if the current environment supports Dandruff functionality
     #
     # @return [Boolean] true if Nokogiri is available, false otherwise
     def supported?
@@ -192,6 +192,7 @@ module Scrubber
 
       output
     end
+    alias_method :scrub, :sanitize
 
     private
 
@@ -1086,5 +1087,9 @@ module Scrubber
   # @return [String, Nokogiri::XML::Document] sanitized HTML or DOM
   def self.sanitize(dirty, cfg = {})
     new(cfg).sanitize(dirty)
+  end
+
+  class << self
+    alias_method :scrub, :sanitize
   end
 end

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Scrubber
+module Dandruff
   # Attribute allowlists and security denylists for HTML sanitization
   #
   # This module defines comprehensive attribute allowlists for different content types
@@ -9,8 +9,8 @@ module Scrubber
   # security model and web standards.
   #
   # @example Using attribute lists in configuration
-  #   scrubber.configure do |config|
-  #     config.allowed_attributes = Scrubber::Attributes::HTML
+  #   dandruff.configure do |config|
+  #     config.allowed_attributes = Dandruff::Attributes::HTML
   #   end
   #
   # @see Config Configuration class that uses these attribute lists
@@ -32,8 +32,8 @@ module Scrubber
     # and sanitized to prevent CSS injection.
     #
     # @example Standard HTML content
-    #   scrubber.configure do |config|
-    #     config.allowed_attributes = Scrubber::Attributes::HTML
+    #   dandruff.configure do |config|
+    #     config.allowed_attributes = Dandruff::Attributes::HTML
     #   end
     HTML = %w[
       accept action align alt autocapitalize autocomplete autopictureinpicture autoplay
@@ -65,7 +65,7 @@ module Scrubber
     # mXSS attacks through proper namespace handling and attribute validation.
     #
     # @example SVG graphics
-    #   scrubber.configure do |config|
+    #   dandruff.configure do |config|
     #     config.use_profiles = { svg: true }  # Includes SVG attributes
     #   end
     SVG = %w[
@@ -108,7 +108,7 @@ module Scrubber
     # MathML-based mXSS attacks through namespace validation.
     #
     # @example Mathematical formulas
-    #   scrubber.configure do |config|
+    #   dandruff.configure do |config|
     #     config.use_profiles = { math_ml: true }  # Includes MathML attributes
     #   end
     MATH_ML = %w[
@@ -151,7 +151,7 @@ module Scrubber
     # **Note:** Email clients vary widely - test thoroughly across clients.
     #
     # @example Email sanitization
-    #   scrubber.configure do |config|
+    #   dandruff.configure do |config|
     #     config.use_profiles = { html_email: true }
     #   end
     HTML_EMAIL = (HTML + %w[

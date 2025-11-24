@@ -1,25 +1,25 @@
 # frozen_string_literal: true
 
 require 'bundler/setup'
-require 'scrubber'
+require 'dandruff'
 
 # You can add fixtures and/or initialization code here to make experimenting
 # with your gem easier. You can also use a different console, if you like.
 
-puts "Scrubber Ruby Console"
+puts "Dandruff Ruby Console"
 puts "======================="
 puts
 
 # Example usage
 dirty_html = '<script>alert("xss")</script><p class="safe">Safe content</p>'
-scrubber = Scrubber.new
-clean_html = scrubber.sanitize(dirty_html)
+dandruff = Dandruff.new
+clean_html = dandruff.sanitize(dirty_html)
 
 puts "Original: #{dirty_html}"
 puts "Clean:    #{clean_html}"
 puts
 
 # Test with configuration
-configured_scrubber = Scrubber.new(allowed_tags: ['p'], allowed_attributes: [])
-configured_clean = configured_scrubber.sanitize(dirty_html)
+configured_dandruff = Dandruff.new(allowed_tags: ['p'], allowed_attributes: [])
+configured_clean = configured_dandruff.sanitize(dirty_html)
 puts "With config: #{configured_clean}"

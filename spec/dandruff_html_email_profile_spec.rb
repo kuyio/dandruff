@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
 require 'rspec'
-require 'scrubber'
+require 'dandruff'
 
-RSpec.describe Scrubber do
+RSpec.describe Dandruff do
   describe 'HTML Email Profile' do
-    let(:scrubber) { described_class.new(use_profiles: { html_email: true }) }
+    let(:dandruff) { described_class.new(use_profiles: { html_email: true }) }
 
     let(:email_html) do
       <<~HTML
@@ -42,38 +42,38 @@ RSpec.describe Scrubber do
     end
 
     it 'preserves document structure (html, head, body)' do
-      clean = scrubber.sanitize(email_html)
+      clean = dandruff.sanitize(email_html)
       expect(clean).to include('<html>')
       expect(clean).to include('<head>')
       expect(clean).to include('<body')
     end
 
     it 'preserves style tags' do
-      clean = scrubber.sanitize(email_html)
+      clean = dandruff.sanitize(email_html)
       expect(clean).to include('<style>')
       expect(clean).to include('.container { width: 100%; background-color: #f0f0f0; }')
     end
 
     it 'preserves legacy presentation tags (center, font)' do
-      clean = scrubber.sanitize(email_html)
+      clean = dandruff.sanitize(email_html)
       expect(clean).to include('<center>')
       expect(clean).to include('<font face="Arial, sans-serif"')
     end
 
     it 'preserves legacy attributes (bgcolor, width, cellpadding)' do
-      clean = scrubber.sanitize(email_html)
+      clean = dandruff.sanitize(email_html)
       expect(clean).to include('bgcolor="#ffffff"')
       expect(clean).to include('width="600"')
       expect(clean).to include('cellpadding="0"')
     end
 
     it 'preserves target attribute on links' do
-      clean = scrubber.sanitize(email_html)
+      clean = dandruff.sanitize(email_html)
       expect(clean).to include('target="_blank"')
     end
 
     it 'removes dangerous tags (script, form, iframe)' do
-      clean = scrubber.sanitize(email_html)
+      clean = dandruff.sanitize(email_html)
       expect(clean).not_to include('<script>')
       expect(clean).not_to include('alert(\'xss\')')
       expect(clean).not_to include('<form')
@@ -82,7 +82,7 @@ RSpec.describe Scrubber do
 
     it 'removes dangerous attributes' do
       email_html = '<a href="https://example.com" onclick="stealCookies()">Click me</a>'
-      clean = scrubber.sanitize(email_html)
+      clean = dandruff.sanitize(email_html)
       expect(clean).to include('href="https://example.com"')
       expect(clean).not_to include('onclick')
     end
@@ -114,7 +114,7 @@ RSpec.describe Scrubber do
       end
 
       it 'preserves complex structure and styling' do
-        clean = scrubber.sanitize(marketing_html)
+        clean = dandruff.sanitize(marketing_html)
         expect(clean).to include('<meta name="viewport" content="width=device-width, initial-scale=1.0">')
         expect(clean).to include('#body { background-color: #f0f0f0; }')
         expect(clean).to include('#content-table { width: 100%; }')
@@ -126,7 +126,7 @@ RSpec.describe Scrubber do
     context 'when handling phishing and malicious attacks' do
       it 'removes meta refresh redirects' do
         phishing_html = '<html><head><meta http-equiv="refresh" content="0;url=http://malicious.com"></head><body></body></html>'
-        clean = scrubber.sanitize(phishing_html)
+        clean = dandruff.sanitize(phishing_html)
         # http-equiv is not in the allowed attributes list for HTML_EMAIL
         expect(clean).not_to include('http-equiv')
         expect(clean).not_to include('refresh')
@@ -140,7 +140,7 @@ RSpec.describe Scrubber do
           '<a href="vbscript:alert(1)">Click</a>'
         ]
         attacks.each do |attack|
-          clean = scrubber.sanitize(attack)
+          clean = dandruff.sanitize(attack)
           expect(clean).not_to include('javascript:')
           expect(clean).not_to include('vbscript:')
           expect(clean).not_to include('alert(1)')
@@ -151,13 +151,13 @@ RSpec.describe Scrubber do
         # base tag is not in HTML_EMAIL tags
         phishing_html = '<html><head><base href="http://malicious.com/"></head>' \
                         '<body><a href="login">Login</a></body></html>'
-        clean = scrubber.sanitize(phishing_html)
+        clean = dandruff.sanitize(phishing_html)
         expect(clean).not_to include('<base')
       end
 
       it 'removes form hijacking' do
         phishing_html = '<form action="http://malicious.com/steal"><input type="password" name="pass"></form>'
-        clean = scrubber.sanitize(phishing_html)
+        clean = dandruff.sanitize(phishing_html)
         expect(clean).not_to include('<form')
         expect(clean).not_to include('<input')
       end
@@ -165,13 +165,13 @@ RSpec.describe Scrubber do
 
     it 'removes dangerous attributes (onclick)' do
       dirty = '<a href="#" onclick="steal()">Click</a>'
-      clean = scrubber.sanitize(dirty)
+      clean = dandruff.sanitize(dirty)
       expect(clean).not_to include('onclick')
     end
 
     it 'removes javascript: URIs' do
       dirty = '<a href="javascript:alert(1)">Click</a>'
-      clean = scrubber.sanitize(dirty)
+      clean = dandruff.sanitize(dirty)
       expect(clean).not_to include('javascript:')
     end
 
@@ -191,7 +191,7 @@ RSpec.describe Scrubber do
         </html>
       HTML
 
-      clean = scrubber.sanitize(dirty)
+      clean = dandruff.sanitize(dirty)
       expect(clean).to include('<html lang="en">')
       expect(clean).to include('meta name="viewport" content="width=device-width, initial-scale=1.0"')
       expect(clean).to include('<style type="text/css">body { background:#f4f4f4; }</style>')
@@ -217,7 +217,7 @@ RSpec.describe Scrubber do
         </html>
       HTML
 
-      clean = scrubber.sanitize(dirty)
+      clean = dandruff.sanitize(dirty)
       expect(clean).to include('<html lang="fr">')
       expect(clean).to include('<meta charset="utf-8">')
       expect(clean).to include('<meta name="format-detection" content="telephone=no">')
@@ -236,7 +236,7 @@ RSpec.describe Scrubber do
         </html>
       HTML
 
-      clean = scrubber.sanitize(dirty)
+      clean = dandruff.sanitize(dirty)
       table_expected = '<table width="600" border="0" cellpadding="0" cellspacing="0" align="center" ' \
                        'bgcolor="#fff" background="bg.png" role="presentation" summary="layout">'
       td_expected = 'td bgcolor="#ddd" background="cell.png" colspan="2" rowspan="1" valign="top" ' \
@@ -257,7 +257,7 @@ RSpec.describe Scrubber do
         </html>
       HTML
 
-      clean = scrubber.sanitize(dirty)
+      clean = dandruff.sanitize(dirty)
       expect(clean).to include('<html lang="en">')
       expect(clean).to include('<body bgcolor="#fff">')
       expect(clean).to include('target="_blank"')
@@ -269,7 +269,7 @@ RSpec.describe Scrubber do
     end
 
     it 'applies html_email profile when configured via block with return_dom' do
-      scrubber = Scrubber.new do |config|
+      dandruff = Dandruff.new do |config|
         config.use_profiles = { html_email: true }
         config.return_dom = true
       end
@@ -287,7 +287,7 @@ RSpec.describe Scrubber do
         </html>
       HTML
 
-      doc = scrubber.sanitize(dirty)
+      doc = dandruff.sanitize(dirty)
       html = doc.at('html')
       body = doc.at('body')
       expect(html['lang']).to eq('en')

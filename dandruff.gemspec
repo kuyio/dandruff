@@ -1,19 +1,21 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require_relative 'lib/scrubber'
-require_relative 'lib/scrubber/version'
+require_relative 'lib/dandruff'
+require_relative 'lib/dandruff/version'
 
 Gem::Specification.new do |spec|
-  spec.name        = 'scrubber'
-  spec.version     = Scrubber::VERSION
-  spec.authors     = ['Scrubber Ruby Contributors']
+  spec.name        = 'dandruff'
+  spec.version     = Dandruff::VERSION
+  spec.authors     = ['KUY.io Inc.']
   spec.email       = ['dev@kuy.io']
 
-  spec.summary     = 'Scrubber – Ruby HTML sanitizer'
-  spec.description = 'Scrubber is a Ruby HTML sanitizer providing robust XSS protection ' \
-                     'with a clean, idiomatic configuration API.'
-  spec.homepage    = 'https://github.com/kuyio/scrubber'
+  spec.summary     = "Medicated shampoo for your markup"
+  spec.description = <<~DESC
+    Dandruff aggressively removes itchy XSS flakes and nasty script tags from your HTML.
+    Because your markup shouldn’t flake under pressure.
+  DESC
+  spec.homepage    = 'https://github.com/kuyio/dandruff'
   spec.license     = 'Apache-2.0'
   spec.required_ruby_version = '>= 2.7.0' # rubocop:disable Gemspec/RequiredRubyVersion
 

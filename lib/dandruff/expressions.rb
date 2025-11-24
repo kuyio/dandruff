@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-module Scrubber
+module Dandruff
   # Regular expressions for attribute matching and content validation
   #
-  # This module contains regular expressions used throughout Scrubber for validating
+  # This module contains regular expressions used throughout Dandruff for validating
   # attributes, detecting template expressions, and checking URI protocols. These patterns
   # are critical for security and should not be modified without careful consideration.
   #

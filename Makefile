@@ -1,4 +1,4 @@
-# Makefile for Scrubber Ruby Gem
+# Makefile for Dandruff Ruby Gem
 
 .PHONY: all test build clean install lint help
 
@@ -11,7 +11,7 @@ specs:
 
 # Build the gem
 build:
-	gem build scrubber.gemspec
+	gem build dandruff.gemspec
 
 # Clean build artifacts
 clean:
@@ -19,7 +19,7 @@ clean:
 
 # Install the gem locally
 install: build
-	gem install scrubber-*.gem
+	gem install dandruff-*.gem
 
 # Run linting
 lint:

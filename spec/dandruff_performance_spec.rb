@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative '../lib/scrubber'
+require_relative '../lib/dandruff'
 require 'benchmark'
 require 'securerandom'
 
@@ -37,7 +37,7 @@ end
 
 # Performance test scenarios
 def run_performance_tests
-  puts 'Scrubber Performance Tests'
+  puts 'Dandruff Performance Tests'
   puts '=' * 50
 
   test_sizes = [1, 10, 50, 100, 500] # KB
@@ -49,7 +49,7 @@ def run_performance_tests
 
     # Test with default configuration
     default_time = Benchmark.realtime do
-      iterations.times { Scrubber.sanitize(html) }
+      iterations.times { Dandruff.sanitize(html) }
     end
 
     # Test with strict configuration
@@ -60,7 +60,7 @@ def run_performance_tests
       ALLOW_DATA_URI: false
     }
     strict_time = Benchmark.realtime do
-      iterations.times { Scrubber.sanitize(html, strict_config) }
+      iterations.times { Dandruff.sanitize(html, strict_config) }
     end
 
     # Test with permissive configuration
@@ -71,13 +71,13 @@ def run_performance_tests
       KEEP_CONTENT: true
     }
     permissive_time = Benchmark.realtime do
-      iterations.times { Scrubber.sanitize(html, permissive_config) }
+      iterations.times { Dandruff.sanitize(html, permissive_config) }
     end
 
     # Test RETURN_DOM configuration
     dom_config = { RETURN_DOM: true }
     dom_time = Benchmark.realtime do
-      iterations.times { Scrubber.sanitize(html, dom_config) }
+      iterations.times { Dandruff.sanitize(html, dom_config) }
     end
 
     puts "  Default config:    #{(default_time * 1000).round(2)}ms total, " \
@@ -116,7 +116,7 @@ def test_memory_usage
     end
 
     # Run multiple sanitizations
-    5.times { Scrubber.sanitize(html) }
+    5.times { Dandruff.sanitize(html) }
 
     GC.start
     memory_after = begin
@@ -144,7 +144,7 @@ def stress_test_small_documents
 
   document_counts.each do |count|
     time = Benchmark.realtime do
-      count.times { Scrubber.sanitize(small_html) }
+      count.times { Dandruff.sanitize(small_html) }
     end
 
     puts "  #{count} documents: #{(time * 1000).round(2)}ms total, #{(time / count * 1000).round(4)}ms avg"
@@ -168,7 +168,7 @@ def test_configuration_switching
 
   configs.each do |config_test|
     time = Benchmark.realtime do
-      20.times { Scrubber.sanitize(html, config_test[:config]) }
+      20.times { Dandruff.sanitize(html, config_test[:config]) }
     end
 
     puts "  #{config_test[:name]}: #{(time * 1000).round(2)}ms total, #{(time / 20 * 1000).round(2)}ms avg"
@@ -178,7 +178,7 @@ def test_configuration_switching
   switching_time = Benchmark.realtime do
     50.times do |i|
       config = configs[i % configs.length][:config]
-      Scrubber.sanitize(html, config)
+      Dandruff.sanitize(html, config)
     end
   end
 
