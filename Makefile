@@ -13,6 +13,10 @@ specs:
 build:
 	gem build dandruff.gemspec
 
+# Deploy to RubyGems (requires authentication)
+deploy: build
+	gem push dandruff-*.gem
+
 # Clean build artifacts
 clean:
 	rm -f *.gem
