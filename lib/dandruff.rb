@@ -175,7 +175,17 @@ module Dandruff
       cfg.empty? ? ensure_config : set_config(cfg)
       @removed = []
       return '' if dirty.nil?
-      return dirty.to_s if dirty.to_s.strip.empty?
+
+      # Handle empty strings - still process through DOM if return_dom is enabled
+      if dirty.to_s.strip.empty?
+        if @config.return_dom
+          return parse_html('')
+        elsif @config.return_dom_fragment
+          return Nokogiri::HTML5::DocumentFragment.parse('')
+        else
+          return dirty.to_s
+        end
+      end
 
       dirty = dirty.to_s unless dirty.is_a?(String)
       doc = parse_html(dirty)

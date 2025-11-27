@@ -1,5 +1,10 @@
 ## [Unreleased]
- 
+
+## [0.8.1] - 2025-11-27
+
+### Fixed
+- Fixed empty string handling with `return_dom: true` and `return_dom_fragment: true` configurations to return proper Nokogiri document objects instead of empty strings.
+
 ## [0.8.0] - 2025-11-24
 
 ### Changed

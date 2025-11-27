@@ -304,6 +304,12 @@ RSpec.describe Dandruff do
         expect(result.to_html).to include('<div')
         expect(result.to_html).to include('Content')
       end
+
+      it 'returns DOM for empty string when enabled' do
+        result = dandruff.sanitize('', return_dom: true)
+        expect(result).to be_a(Nokogiri::HTML5::Document)
+        expect(result.to_html).to include('<html')
+      end
     end
 
     describe 'return_dom_fragment configuration' do
@@ -313,6 +319,12 @@ RSpec.describe Dandruff do
         expect(result).to be_a(Nokogiri::HTML5::DocumentFragment)
         expect(result.to_html).to include('<div')
         expect(result.to_html).to include('Content')
+      end
+
+      it 'returns DOM fragment for empty string when enabled' do
+        result = dandruff.sanitize('', return_dom_fragment: true)
+        expect(result).to be_a(Nokogiri::HTML5::DocumentFragment)
+        expect(result.to_html).to be_empty
       end
     end
 
