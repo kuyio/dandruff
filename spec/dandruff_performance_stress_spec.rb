@@ -78,7 +78,6 @@ if defined?(RSpec) && RSpec
     end
   end
 else
-  puts 'RSpec not available; running stress scenarios directly...'
 
   def ensure!
     raise 'Assertion failed' unless yield
@@ -89,7 +88,6 @@ else
   clean = Dandruff.sanitize(large_doc)
   ensure! { clean.include?('<p>Test paragraph') }
   ensure! { (Time.now - start_time) < 5.0 }
-  puts 'Large document: passed'
 
   start_time = Time.now
   1000.times do |i|
@@ -98,7 +96,6 @@ else
     ensure! { !clean.include?('<script') } # rubocop:disable Rails/NegateInclude
   end
   ensure! { (Time.now - start_time) < 10.0 }
-  puts 'Many small documents: passed'
 
   start_time = Time.now
   nested = '<div>'
@@ -111,7 +108,6 @@ else
   clean = Dandruff.sanitize(nested)
   ensure! { clean.include?('Deep content') }
   ensure! { (Time.now - start_time) < 5.0 }
-  puts 'Complex nesting: passed'
 
   initial_objects = ObjectSpace.count_objects
   100.times do
@@ -122,5 +118,5 @@ else
   final_objects = ObjectSpace.count_objects
   object_growth = final_objects[:TOTAL] - initial_objects[:TOTAL]
   ensure! { object_growth < 50_000 }
-  puts 'Memory usage: passed'
+
 end

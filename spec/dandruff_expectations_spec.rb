@@ -5,7 +5,7 @@ require 'dandruff'
 
 path = File.expand_path('fixtures/examples.rb', __dir__)
 # Fixture uses a top-level local (`examples = [...]`), so we eval to capture it.
-EXPECTATIONS = Kernel.eval(File.read(path), binding, path)
+EXPECTATIONS = Kernel.eval(File.read(path), binding, path) # rubocop:disable Security/Eval
 
 # Tests that are skipped due to Nokogiri vs browser HTML5 parsing differences
 # These test browser-specific parsing mutations that don't apply to server-side sanitization

@@ -37,15 +37,11 @@ end
 
 # Performance test scenarios
 def run_performance_tests
-  puts 'Dandruff Performance Tests'
-  puts '=' * 50
-
   test_sizes = [1, 10, 50, 100, 500] # KB
   iterations = 10
 
   test_sizes.each do |size_kb|
     html = generate_large_html(size_kb)
-    puts "\nTesting #{size_kb}KB HTML document (#{html.length} bytes)"
 
     # Test with default configuration
     default_time = Benchmark.realtime do
@@ -70,37 +66,24 @@ def run_performance_tests
       ALLOW_DATA_URI: true,
       KEEP_CONTENT: true
     }
-    permissive_time = Benchmark.realtime do
+    Benchmark.realtime do
       iterations.times { Dandruff.sanitize(html, permissive_config) }
     end
 
     # Test RETURN_DOM configuration
     dom_config = { RETURN_DOM: true }
-    dom_time = Benchmark.realtime do
+    Benchmark.realtime do
       iterations.times { Dandruff.sanitize(html, dom_config) }
     end
 
-    puts "  Default config:    #{(default_time * 1000).round(2)}ms total, " \
-         "#{(default_time / iterations * 1000).round(2)}ms avg"
-    puts "  Strict config:     #{(strict_time * 1000).round(2)}ms total, " \
-         "#{(strict_time / iterations * 1000).round(2)}ms avg"
-    puts "  Permissive config: #{(permissive_time * 1000).round(2)}ms total, " \
-         "#{(permissive_time / iterations * 1000).round(2)}ms avg"
-    puts "  RETURN_DOM config: #{(dom_time * 1000).round(2)}ms total, " \
-         "#{(dom_time / iterations * 1000).round(2)}ms avg"
-
     # Calculate throughput
-    throughput_default = (size_kb * iterations) / default_time
-    throughput_strict = (size_kb * iterations) / strict_time
-    puts "  Throughput: #{throughput_default.round(2)} KB/s (default), #{throughput_strict.round(2)} KB/s (strict)"
+    (size_kb * iterations) / default_time
+    (size_kb * iterations) / strict_time
   end
 end
 
 # Memory usage test
 def test_memory_usage
-  puts "\nMemory Usage Test"
-  puts '=' * 30
-
   # Test with progressively larger documents
   sizes = [10, 50, 100, 200, 500] # KB
 
@@ -125,38 +108,24 @@ def test_memory_usage
       nil
     end
 
-    if memory_before && memory_after
-      memory_used = memory_after - memory_before
-      puts "  #{size_kb}KB: #{memory_used}KB additional memory used"
-    else
-      puts "  #{size_kb}KB: memory measurement skipped (ps unavailable)"
-    end
+    memory_after - memory_before if memory_before && memory_after
   end
 end
 
 # Stress test with many small documents
 def stress_test_small_documents
-  puts "\nStress Test: Many Small Documents"
-  puts '=' * 40
-
   small_html = "<p>Small document with <a href='#' onclick='alert(1)'>link</a> and <script>alert('xss')</script></p>"
   document_counts = [100, 500, 1000, 2000]
 
   document_counts.each do |count|
-    time = Benchmark.realtime do
+    Benchmark.realtime do
       count.times { Dandruff.sanitize(small_html) }
     end
-
-    puts "  #{count} documents: #{(time * 1000).round(2)}ms total, #{(time / count * 1000).round(4)}ms avg"
-    puts "  Throughput: #{(count / time).round(2)} docs/sec"
   end
 end
 
 # Test configuration switching performance
 def test_configuration_switching
-  puts "\nConfiguration Switching Performance"
-  puts '=' * 40
-
   html = generate_large_html(50) # 50KB document
 
   configs = [
@@ -167,22 +136,18 @@ def test_configuration_switching
   ]
 
   configs.each do |config_test|
-    time = Benchmark.realtime do
+    Benchmark.realtime do
       20.times { Dandruff.sanitize(html, config_test[:config]) }
     end
-
-    puts "  #{config_test[:name]}: #{(time * 1000).round(2)}ms total, #{(time / 20 * 1000).round(2)}ms avg"
   end
 
   # Test rapid config switching
-  switching_time = Benchmark.realtime do
+  Benchmark.realtime do
     50.times do |i|
       config = configs[i % configs.length][:config]
       Dandruff.sanitize(html, config)
     end
   end
-
-  puts "  Rapid switching: #{(switching_time * 1000).round(2)}ms total, #{(switching_time / 50 * 1000).round(2)}ms avg"
 end
 
 # Run all performance tests
@@ -192,5 +157,4 @@ if __FILE__ == $PROGRAM_NAME
   stress_test_small_documents
   test_configuration_switching
 
-  puts "\nPerformance testing completed!"
 end

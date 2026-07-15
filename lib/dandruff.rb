@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'nokogiri'
-require 'set'
 require 'uri'
 
 require_relative 'dandruff/version'
@@ -967,13 +966,13 @@ module Dandruff
     # @return [Boolean, nil] true if allowed, nil otherwise
     # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     def check_default_allowed_attributes(tag_name, attr_name)
-      html_attrs = @html_attrs ||= Attributes::HTML.map { |a| transform_case(a) }.to_set
-      svg_attrs = @svg_attrs ||= (Attributes::SVG + Attributes::XML).map { |a| transform_case(a) }.to_set
-      math_attrs = @math_attrs ||= (Attributes::MATH_ML + Attributes::XML).map { |a| transform_case(a) }.to_set
+      html_attrs = @html_attrs ||= Attributes::HTML.to_set { |a| transform_case(a) }
+      svg_attrs = @svg_attrs ||= (Attributes::SVG + Attributes::XML).to_set { |a| transform_case(a) }
+      math_attrs = @math_attrs ||= (Attributes::MATH_ML + Attributes::XML).to_set { |a| transform_case(a) }
 
-      @html_tags_set ||= Tags::HTML.map { |t| transform_case(t) }.to_set
-      @svg_tags_set ||= (Tags::SVG + Tags::SVG_FILTERS).map { |t| transform_case(t) }.to_set
-      @math_tags_set ||= Tags::MATH_ML.map { |t| transform_case(t) }.to_set
+      @html_tags_set ||= Tags::HTML.to_set { |t| transform_case(t) }
+      @svg_tags_set ||= (Tags::SVG + Tags::SVG_FILTERS).to_set { |t| transform_case(t) }
+      @math_tags_set ||= Tags::MATH_ML.to_set { |t| transform_case(t) }
 
       is_svg = @svg_tags_set.include?(tag_name)
       is_math = @math_tags_set.include?(tag_name)
@@ -1086,8 +1085,8 @@ module Dandruff
   # @param cfg [Hash, Config] optional configuration to initialize with
   # @yield [config] optional block to mutate configuration before use
   # @return [Sanitizer] a new sanitizer instance
-  def self.new(cfg = {}, &block)
-    Sanitizer.new(cfg, &block)
+  def self.new(cfg = {}, &)
+    Sanitizer.new(cfg, &)
   end
 
   # Convenience helper to sanitize with a fresh, default-configured instance.
