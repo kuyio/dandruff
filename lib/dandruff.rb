@@ -9,6 +9,7 @@ require_relative 'dandruff/tags'
 require_relative 'dandruff/attributes'
 require_relative 'dandruff/expressions'
 require_relative 'dandruff/utils'
+require_relative 'dandruff/css'
 
 # Dandruff - A robust HTML sanitizer for Ruby
 #
@@ -59,7 +60,7 @@ require_relative 'dandruff/utils'
 #
 # @example Custom hooks
 #   dandruff = Dandruff.new
-#   dandruff.add_hook(:upon_sanitize_attribute) do |node, data, config|
+#   dandruff.add_hook(:upon_sanitize_attribute) do |attr, data, config|
 #     # Custom attribute processing
 #     if data[:attr_name] == 'data-safe'
 #       data[:keep_attr] = true
@@ -89,6 +90,7 @@ module Dandruff
   # It parses HTML, removes dangerous elements and attributes, and serializes the result.
   class Sanitizer
     MATH_SVG_TAGS = %w[math svg].freeze
+    DOCUMENT_TAGS = %w[html head body].freeze
     attr_reader :removed, :config, :hooks
 
     # Initializes a new sanitizer instance
@@ -173,6 +175,7 @@ module Dandruff
 
       cfg.empty? ? ensure_config : set_config(cfg)
       @removed = []
+      @css_sanitizer = nil # rebuilt from the current config
       return '' if dirty.nil?
 
       # Handle empty strings - still process through DOM if return_dom is enabled
@@ -277,13 +280,6 @@ module Dandruff
             node.remove
           end
           next
-        elsif node.element? && node.name == 'style'
-          node.remove && next unless @config.allow_style_tags
-
-          if unsafe_style_node?(node)
-            node.remove
-            next
-          end
         elsif node.element?
           sanitize_element(node)
         elsif node.text? && @config.safe_for_templates
@@ -311,9 +307,42 @@ module Dandruff
         handle_disallowed_element(node, tag_name)
         return
       end
+      return if tag_name == 'style' && remove_unsafe_style_node(node)
 
       sanitize_attributes(node)
+      sanitize_style_content(node) if tag_name == 'style'
       handle_vml_namespace(node)
+    end
+
+    # Removes unsafe rules and declarations from the text of a <style> element
+    #
+    # @param node [Nokogiri::XML::Element] the style element
+    # @see Css
+    def sanitize_style_content(node)
+      css = node.content
+      clean = css_sanitizer.sanitize(css)
+      node.content = clean unless clean == css
+    end
+
+    def css_sanitizer
+      @css_sanitizer ||= Css.new(
+        allow_data_uri: @config.allow_data_uri,
+        allowed_uri_regexp: @config.allowed_uri_regexp,
+        allow_remote_urls: @config.allow_remote_style_urls
+      )
+    end
+
+    # Removes a <style> element that is allowed by tag rules but sits in an unsafe position
+    # (e.g. top level of a fragment, inside option/select, or containing markup).
+    #
+    # @param node [Nokogiri::XML::Element] the style element
+    # @return [Boolean] true if the node was removed
+    def remove_unsafe_style_node(node)
+      return false unless unsafe_style_node?(node)
+
+      @removed << { element: node }
+      node.remove
+      true
     end
 
     # Sanitizes attributes of an element
@@ -338,9 +367,10 @@ module Dandruff
         had_xlink_href ||= (lc_name == 'xlink:href')
         had_xlink_href ||= (attr.namespace&.href == 'http://www.w3.org/1999/xlink')
 
-        execute_hooks(:upon_sanitize_attribute, attr, { tag_name: tag_name, attr_name: lc_name, value: value })
+        value, keep_attr = run_attribute_hooks(attr, tag_name, lc_name, value)
+        value, keep_attr = strip_remote_style_urls(lc_name, value, keep_attr)
 
-        if valid_attribute?(tag_name, lc_name, value)
+        if attribute_permitted?(tag_name, lc_name, value, keep_attr)
           attr.value = value if value != attr.value
         else
           to_remove << name
@@ -361,6 +391,58 @@ module Dandruff
       ensure_xlink_namespace(node) if had_xlink_href || node.key?('xlink:href')
 
       execute_hooks(:after_sanitize_attributes, node)
+    end
+
+    # Runs upon_sanitize_attribute hooks for an attribute
+    #
+    # @return [Array(String, Boolean)] the value to validate and the hook's keep_attr decision
+    def run_attribute_hooks(attr, tag_name, attr_name, value)
+      hook_data = { tag_name: tag_name, attr_name: attr_name, value: value.dup, keep_attr: nil }
+      execute_hooks(:upon_sanitize_attribute, attr, hook_data)
+      [attribute_value_after_hooks(attr, hook_data, value), hook_data[:keep_attr]]
+    end
+
+    # Removes remote CSS URLs from a style attribute when allow_remote_style_urls is false
+    #
+    # @return [Array(String, Boolean)] the value and keep_attr (false if nothing is left)
+    def strip_remote_style_urls(attr_name, value, keep_attr)
+      return [value, keep_attr] if attr_name != 'style' || @config.allow_remote_style_urls
+
+      value = css_sanitizer.sanitize(value)
+      [value, value.strip.empty? ? false : keep_attr]
+    end
+
+    # Returns the attribute value to validate after upon_sanitize_attribute hooks ran.
+    #
+    # Hooks may replace or mutate data[:value], or write the Nokogiri::XML::Attr directly.
+    #
+    # @param attr [Nokogiri::XML::Attr] the attribute passed to the hooks
+    # @param data [Hash] the hook data hash
+    # @param original [String] the value before the hooks ran
+    # @return [String] the (unvalidated) value
+    def attribute_value_after_hooks(attr, data, original)
+      value = data[:value].to_s
+      value = attr.value.to_s if value == original && attr.value != original
+      value.dup
+    end
+
+    # Decides whether an attribute is kept, taking a hook's data[:keep_attr] into account.
+    #
+    # keep_attr = false always removes the attribute. keep_attr = true only bypasses the
+    # tag/attribute allowlists: forbidden and event-handler attributes are still removed, and
+    # URI, style and DOM clobbering checks still apply to the (possibly rewritten) value.
+    #
+    # @param tag_name [String] tag name
+    # @param attr_name [String] normalized attribute name
+    # @param value [String] attribute value after hooks
+    # @param keep_attr [Boolean, nil] the hook decision, nil if no hook decided
+    # @return [Boolean] true if the attribute is kept
+    def attribute_permitted?(tag_name, attr_name, value, keep_attr)
+      return false if keep_attr == false
+      return valid_attribute?(tag_name, attr_name, value) unless keep_attr == true
+      return false if attr_name.match?(/\Aon/i)
+
+      valid_attribute?(tag_name, attr_name, value, force_allowed: true)
     end
 
     def build_isindex_replacement(node)
@@ -391,45 +473,56 @@ module Dandruff
     #
     # @param tag_name [String] the tag name to check
     # @return [Boolean] true if the tag is allowed, false otherwise
-    # rubocop:disable Metrics/CyclomaticComplexity
     def allowed_element?(tag_name)
-      if !@config.whole_document && !@config.allow_document_elements && !@config.return_dom &&
-          %w[html head body].include?(tag_name)
-        return false
-      end
-
-      return false if @config.forbidden_tags&.include?(tag_name)
+      return false if element_denied?(tag_name)
+      # When parsing a whole document the parser always creates html/head/body; like DOMPurify's
+      # WHOLE_DOCUMENT they are implicitly allowed (removing the root would discard everything).
+      return true if document_mode? && DOCUMENT_TAGS.include?(tag_name)
 
       unless @config.allowed_tags.nil?
         allowed = @config.allowed_tags.dup.map { |t| transform_case(t) }
         allowed.concat(@config.additional_tags) if @config.additional_tags
-        is_included = allowed.include?(tag_name)
-        return is_included
+        return allowed.include?(tag_name)
       end
       return true if @config.additional_tags&.map { |t| transform_case(t) }&.include?(tag_name)
+      # With the default allowlist, <style> is governed by allow_style_tags (see element_denied?)
+      return true if tag_name == 'style'
 
       default_allowed_tags.include?(tag_name)
     end
-    # rubocop:enable Metrics/CyclomaticComplexity
+
+    # Whether the input is parsed and kept as a full document (html/head/body)
+    #
+    # @return [Boolean]
+    def document_mode?
+      @config.whole_document || @config.allow_document_elements || @config.return_dom
+    end
+
+    # Checks the rules that remove an element regardless of the allowlist
+    #
+    # @param tag_name [String] the tag name to check
+    # @return [Boolean] true if the element must be removed
+    def element_denied?(tag_name)
+      return true if !document_mode? && DOCUMENT_TAGS.include?(tag_name)
+      return true if @config.forbidden_tags&.include?(tag_name)
+
+      # <style> is only ever kept when style tags are enabled, whatever the allowlist says
+      tag_name == 'style' && !@config.allow_style_tags
+    end
 
     # Checks if an attribute is valid for a given tag
     #
     # @param tag_name [String] the element tag name
     # @param attr_name [String] the attribute name
     # @param value [String] the attribute value
-    # @return [Boolean] true if the attribute is valid, false otherwise
-    # Checks if an attribute is valid for a given tag
-    #
-    # @param tag_name [String] the element tag name
-    # @param attr_name [String] the attribute name
-    # @param value [String] the attribute value
+    # @param force_allowed [Boolean] treat the attribute as allow-listed (hook keep_attr = true)
     # @return [Boolean] true if the attribute is valid, false otherwise
     # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
-    def valid_attribute?(tag_name, attr_name, value)
+    def valid_attribute?(tag_name, attr_name, value, force_allowed: false)
       return false if forbidden_attribute?(attr_name)
       return false if dangerous_attribute?(attr_name)
 
-      attr_allowed = attribute_allowed?(tag_name, attr_name)
+      attr_allowed = force_allowed || attribute_allowed?(tag_name, attr_name)
 
       return true if data_attribute_allowed?(attr_name)
       return true if aria_attribute_allowed?(attr_name)
@@ -443,6 +536,7 @@ module Dandruff
 
       return false if @config.sanitize_dom && dom_clobbering_attribute?(attr_name, value)
 
+      return valid_srcset?(tag_name, value, attr_allowed) if attr_name == 'srcset' && value
       return valid_uri_attribute?(tag_name, value, attr_allowed) if uri_like?(attr_name) && value
 
       return attr_allowed if [true, false].include?(attr_allowed)
@@ -492,63 +586,6 @@ module Dandruff
       # These are only dangerous in specific contexts that modern browsers don't execute
 
       false
-    end
-
-    def sanitize_style_value(value)
-      return nil if unsafe_inline_style?(value)
-      return nil if value.match?(/\\[0-9a-f]{1,6}/i)
-
-      allowed_props = Set.new(%w[
-        align-content align-items align-self all animation animation-delay animation-direction animation-duration
-        animation-fill-mode animation-iteration-count animation-name animation-play-state animation-timing-function
-        background background-clip background-color background-image background-origin background-position
-        background-repeat background-size border border-bottom border-bottom-color border-bottom-style
-        border-bottom-width
-        border-collapse border-color border-image border-left border-left-color border-left-style border-left-width
-        border-radius border-right border-right-color border-right-style border-right-width border-spacing border-style
-        border-top border-top-color border-top-style border-top-width border-width bottom box-shadow box-sizing
-        caption-side clear clip color column-count column-fill column-gap column-rule column-rule-color
-        column-rule-style
-        column-rule-width column-span column-width columns content cursor direction display empty-cells filter flex
-        flex-basis flex-direction flex-flow flex-grow flex-shrink flex-wrap float font font-family font-size
-        font-size-adjust font-stretch font-style font-variant font-weight gap grid grid-area grid-auto-columns
-        grid-auto-flow grid-auto-rows grid-column grid-column-end grid-column-gap grid-column-start grid-gap grid-row
-        grid-row-end grid-row-gap grid-row-start grid-template grid-template-areas grid-template-columns
-        grid-template-rows
-        height justify-content left letter-spacing line-height list-style list-style-image
-        list-style-position list-style-type
-        margin margin-bottom margin-left margin-right margin-top max-height max-width min-height min-width opacity order
-        outline outline-color outline-offset outline-style outline-width overflow overflow-x overflow-y padding
-        padding-bottom padding-left padding-right padding-top page-break-after page-break-before page-break-inside
-        perspective perspective-origin pointer-events position quotes resize right row-gap table-layout text-align
-        text-align-last text-decoration text-decoration-color text-decoration-line text-decoration-style text-indent
-        text-justify text-overflow text-shadow text-transform top transform transform-origin transition transition-delay
-        transition-duration transition-property transition-timing-function unicode-bidi vertical-align visibility
-        white-space width word-break word-spacing word-wrap writing-mode z-index
-      ])
-
-      declarations = value.split(';').map(&:strip).reject(&:empty?)
-      sanitized = declarations.filter_map do |decl|
-        prop, val = decl.split(':', 2).map { |p| p&.strip }
-        next nil unless prop && val
-
-        lc_prop = prop.downcase
-        next nil unless allowed_props.include?(lc_prop)
-        # reject dangerous urls/protocols in values
-        next nil if unsafe_inline_style?(val)
-
-        "#{lc_prop}:#{val}"
-      end
-
-      return nil if sanitized.empty?
-
-      sanitized.join('; ')
-    end
-
-    def unsafe_style_block?(content)
-      return false if content.nil? || content.strip.empty?
-
-      unsafe_inline_style?(content)
     end
 
     # Checks if a node is within a MathML or SVG context
@@ -817,19 +854,19 @@ module Dandruff
     # @param node [Nokogiri::XML::Element] the element node
     # @param tag_name [String] the tag name
     def handle_disallowed_element(node, tag_name)
-      replaced_children = false
-      if @config.keep_content && !forbidden_content?(tag_name) && !@config.allowed_tags
-        if node.children.any?
-          node.children.to_a.each { |child| node.add_previous_sibling(child) }
-          replaced_children = true
-        else
-          node.remove
-        end
+      if node.parent.is_a?(Nokogiri::XML::Document)
+        # The document root (e.g. a forbidden <html>) cannot have siblings: remove it with its content.
+        nil
+      elsif @config.keep_content && !forbidden_content?(tag_name) && !@config.allowed_tags
+        # Children were already sanitized (traverse is post-order); hoist them before removing the node.
+        node.children.to_a.each { |child| node.add_previous_sibling(child) }
       elsif @config.allowed_tags && node.children.any?
         node.add_next_sibling(Nokogiri::XML::Text.new(' ', node.document))
       end
       @removed << { element: node }
-      node.remove unless replaced_children
+      # Always remove the element itself: leaving the emptied shell behind kept its unchecked
+      # attributes (event handlers, javascript: URLs) whenever only a single pass ran.
+      node.remove
     end
 
     # Removes elements with VML namespace
@@ -1064,6 +1101,55 @@ module Dandruff
       false # Reject invalid URIs or non-allowed URI attributes
     end
     # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+
+    # Validates every image candidate URL of a srcset attribute
+    #
+    # @param tag_name [String] tag name
+    # @param value [String] srcset value
+    # @param attr_allowed [Boolean, nil] whether the attribute is allowed
+    # @return [Boolean] true if all candidate URLs are valid
+    def valid_srcset?(tag_name, value, attr_allowed)
+      srcset_urls(value.to_s).all? { |url| valid_uri_attribute?(tag_name, url, attr_allowed) }
+    end
+
+    # Extracts candidate URLs from a srcset value
+    #
+    # Follows the HTML "parse a srcset attribute" algorithm: a URL is a run of non-whitespace
+    # characters (trailing commas end the candidate), and descriptors run up to the next comma
+    # outside parentheses. Commas inside URLs (e.g. data: URLs) are kept.
+    #
+    # @param value [String] srcset value
+    # @return [Array<String>] candidate URLs
+    def srcset_urls(value)
+      urls = []
+      start = value.index(/[^\s,]/)
+      while start
+        url = value[start..][/\A\S+/]
+        pos = start + url.length
+        if url.end_with?(',')
+          url = url.sub(/,+\z/, '')
+        else
+          pos = skip_srcset_descriptors(value, pos)
+        end
+        urls << url
+        start = value.index(/[^\s,]/, pos)
+      end
+      urls
+    end
+
+    # @return [Integer] the position after the descriptors of the current srcset candidate
+    def skip_srcset_descriptors(value, pos)
+      depth = 0
+      while pos < value.length
+        ch = value[pos]
+        depth += 1 if ch == '('
+        depth -= 1 if ch == ')' && depth.positive?
+        return pos + 1 if ch == ',' && depth.zero?
+
+        pos += 1
+      end
+      pos
+    end
 
     # Fallback check for unknown protocols
     #

@@ -1,5 +1,49 @@
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-26
+
+### Security
+- `<style>` elements now go through the normal element/attribute pipeline. Previously they skipped
+  `sanitize_element`, so event handlers on `<style>` (e.g. `<div><style onload=...>`) survived with the default
+  config and anywhere in the `html_email` profile. Also, `forbidden_tags`/`allowed_tags`, hooks and the
+  SVG/MathML mXSS check never applied to `<style>`.
+- `<style>` content is now sanitized (it was passed through unchanged even though the docs said otherwise):
+  `@import` rules, `expression()`, `behavior`/`-moz-binding`, `javascript:`/`vbscript:` and `url()`/`src()`/
+  `image-set()` URLs that fail the URI rules are removed per declaration/rule, after decoding CSS escapes and
+  ignoring comments. The rest of the stylesheet is kept.
+- Disallowed elements whose children were hoisted (`keep_content`) are now always removed. Before, the emptied
+  element stayed in the output with unchecked attributes whenever only a single pass ran
+  (`mutation_max_passes`/`pass_limit` = 1 or `sanitize_until_stable = false`).
+- `upon_sanitize_attribute` hooks: `data[:keep_attr]` and changes to `data[:value]` are now honoured. Rewritten
+  values are validated, and `keep_attr = true` never keeps `on*` handlers, `forbidden_attributes` or values that
+  fail URI/style checks.
+- `srcset` is validated per candidate URL (including `allowed_uri_regexp`) instead of as a single URI.
+- `IS_ALLOWED_URI` now matches DOMPurify: it adds `cid:`, `ftps:`, `sms:`, `callto:`, `xmpp:` and `matrix:`,
+  fixes an unescaped `-` that created the character range `.-:` (so relative URLs such as `images/logo.png` or
+  `img2.png` were rejected), and anchors with `\A`/`\z` instead of line anchors.
+
+### Added
+- `allow_remote_style_urls` (default `true`): set to `false` to remove remote (`http(s)`, `ftp(s)`, `//host`) CSS URLs
+  from `<style>` content and `style` attributes, e.g. to block tracking or CSS data exfiltration in HTML email.
+
+### Changed
+- `<style>` is only kept where the tag rules allow it: the `html` profile (whose allowlist has no `style`) and
+  explicit `allowed_tags` lists without `style` now remove `<style>`. `html_email` and the default config still keep it.
+- `<style>` inside SVG/MathML is now removed, like `<title>` and `<mglyph>` (stricter than DOMPurify).
+- Options passed as a hash now apply `use_profiles` first, whatever the key order. Previously
+  `Dandruff.sanitize(html, forbidden_tags: ['b'], use_profiles: { html_email: true })` dropped `forbidden_tags`.
+- `html`/`head`/`body` are implicitly allowed when parsing whole documents (`whole_document`, `return_dom`,
+  `allow_document_elements`), as with DOMPurify's `WHOLE_DOCUMENT`.
+- Removed the unused `sanitize_style_value`/`unsafe_style_block?` private methods.
+
+### Fixed
+- `html_email` (or any whole-document mode) combined with an `allowed_tags` list lacking `html`/`body` no longer
+  raises `ArgumentError: A document may not have multiple root nodes`.
+- A value written by a hook directly to the attribute node is no longer reverted, and assigning a frozen string to
+  `data[:value]` no longer raises.
+- README: corrected the hook example (it raised `NoMethodError`), replaced the non-existent `scrub_until_stable`
+  option with `sanitize_until_stable`, and stopped recommending a single pass for performance.
+
 ## [0.8.1] - 2025-11-27
 
 ### Fixed

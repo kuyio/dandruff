@@ -11,7 +11,7 @@ GIT
 PATH
   remote: .
   specs:
-    dandruff (0.8.1)
+    dandruff (0.9.0)
       nokogiri (~> 1.10)
 
 GEM

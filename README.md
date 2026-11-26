@@ -204,8 +204,15 @@ The `html_email` profile:
 - Allows document structure tags (`head`, `meta`, `style`)
 - Permits legacy presentation attributes (`bgcolor`, `cellpadding`, `align`, etc.)
 - Uses per-tag attribute restrictions for security
-- Allows style tags with content sanitization
+- Allows style tags with content sanitization (`@import`, `expression()`, `behavior`/`-moz-binding`
+  and disallowed `url()` values are removed; see [CSS Injection](#css-injection))
 - Excludes form elements and scripts
+
+To stop remote resources referenced from CSS (tracking pixels, web fonts, CSS-based data
+exfiltration) from loading, also set `config.allow_remote_style_urls = false`. This removes
+declarations with remote `url()`, `src()` or `image-set()` URLs from `<style>` and `style`
+attributes. It does not touch HTML attributes such as `<img src>` or `background`; use
+`allowed_uri_regexp` or an `upon_sanitize_attribute` hook for those.
 
 #### Per-Tag Attribute Control
 
@@ -241,7 +248,7 @@ dandruff.scrub(html)
 ```ruby
 # Only allow HTTPS URLs from your domain
 dandruff = Dandruff.new do |config|
-  config.allowed_uri_regexp = /^https:\/\/(www\.)?example\.com\//
+  config.allowed_uri_regexp = /\Ahttps:\/\/(www\.)?example\.com\//
 end
 
 html = '<a href="https://example.com/safe">OK</a><a href="http://evil.com">Bad</a>'
@@ -254,22 +261,18 @@ dandruff.scrub(html)
 Hooks allow you to extend Dandruff's behavior:
 
 ```ruby
-dandruff = Dandruff.new
+dandruff = Dandruff.new do |config|
+  config.allow_data_attributes = false # only data-* attributes the hook keeps survive
+end
 
-# Custom attribute handling
-dandruff.add_hook(:upon_sanitize_attribute) do |node, data, config|
-  tag_name = data[:tag_name]
-  attr_name = data[:attr_name]
-  
-  # Allow specific custom data attributes
-  if attr_name.start_with?('data-safe-')
-    data[:keep_attr] = true
-  end
-  
-  # Force lowercase on certain attributes  
-  if attr_name == 'id'
-    node[attr_name] = node[attr_name].downcase
-  end
+# Custom attribute handling. `attr` is the Nokogiri::XML::Attr being checked
+# (use `attr.parent` for the element).
+dandruff.add_hook(:upon_sanitize_attribute) do |attr, data, config|
+  # Keep attributes the allowlists would otherwise remove
+  data[:keep_attr] = true if data[:attr_name].start_with?('data-safe-')
+
+  # Rewrite the value; the new value is still validated
+  data[:value] = data[:value].downcase if data[:attr_name] == 'id'
 end
 
 # Element processing
@@ -278,10 +281,19 @@ dandruff.add_hook(:upon_sanitize_element) do |node, data, config|
   puts "Processing #{data[:tag_name]} element"
 end
 
-html = '<div data-safe-user-id="123" DATA-KEY="ABC" id="MyID">Content</div>'
+html = '<div data-safe-user-id="123" data-key="ABC" id="MyID">Content</div>'
 dandruff.scrub(html)
 # => '<div data-safe-user-id="123" id="myid">Content</div>'
 ```
+
+`upon_sanitize_attribute` receives `data` with `:tag_name`, `:attr_name`, `:value` and `:keep_attr`:
+- Set `data[:value]` to rewrite the attribute (for example to route image URLs through a proxy).
+  The rewritten value goes through the same checks (URI, style, DOM clobbering) as the original.
+- Set `data[:keep_attr] = false` to remove the attribute.
+- Set `data[:keep_attr] = true` to keep an attribute that the tag/attribute allowlists would
+  remove. This never keeps event handlers (`on*`), attributes in `forbidden_attributes`, or
+  values that fail the URI/style checks.
+- Hooks run once per sanitization pass (twice by default), so make rewrites idempotent.
 
 Available hooks:
 - `:before_sanitize_elements` - Before processing elements
@@ -316,8 +328,8 @@ Protect against mutation-based XSS (mXSS):
 
 ```ruby
 dandruff = Dandruff.new do |config|
-  config.scrub_until_stable = true  # default
-  config.mutation_max_passes = 2       # default
+  config.sanitize_until_stable = true  # default
+  config.mutation_max_passes = 2       # default (alias: pass_limit)
 end
 
 # Dandruff will re-sanitize until output is stable
@@ -364,9 +376,10 @@ Complete list of configuration options with defaults and security implications:
 | `allow_aria_attributes` | `Boolean` | `true` | Controls `aria-*` attributes for accessibility. |
 | `allow_data_uri` | `Boolean` | `true` | Blocks `data:` URIs by default for safety. |
 | `allow_unknown_protocols` | `Boolean` | `false` | If true, permits non-standard schemes (⚠️ security risk). |
-| `allowed_uri_regexp` | `Regexp` | `nil` | Custom regexp to validate URI attributes. |
+| `allowed_uri_regexp` | `Regexp` | `nil` | Custom regexp to validate URI attributes (anchor with `\A`, not `^`). Default allows `http(s)`, `ftp(s)`, `mailto`, `tel`, `callto`, `sms`, `cid`, `xmpp`, `matrix` and relative URLs. |
 | `additional_uri_safe_attributes` | `Array<String>` | `[]` | Extra attributes treated as URI-like. |
-| `allow_style_tags` | `Boolean` | `true` | `<style>` tags with content scanning. |
+| `allow_style_tags` | `Boolean` | `true` | Allow `<style>` elements (they must also pass `forbidden_tags`/`allowed_tags`); their content is sanitized. |
+| `allow_remote_style_urls` | `Boolean` | `true` | If false, removes CSS declarations/rules with remote `url()`/`src()`/`image-set()` URLs (`http(s)`, `ftp(s)`, `//host`) from `<style>` and `style` attributes. |
 | `sanitize_dom` | `Boolean` | `true` | Removes DOM clobbering `id`/`name` values. |
 | `safe_for_templates` | `Boolean` | `false` | Strips template expressions (`{{ }}`, `<%= %>`, `${ }`). |
 | `safe_for_xml` | `Boolean` | `true` | Removes comments/PI in XML-ish content. |
@@ -380,7 +393,7 @@ Complete list of configuration options with defaults and security implications:
 | `mutation_max_passes` | `Integer` | `2` | Max passes for stabilization. Higher = more secure, slower. |
 | `keep_content` | `Boolean` | `true` | If false, removes contents of stripped elements. |
 | `in_place` | `Boolean` | `false` | Attempts to sanitize in place (experimental). |
-| `use_profiles` | `Hash` | `{}` | Enable content type profiles: `:html`, `:svg`, `:svg_filters`, `:math_ml`, `:html_email`. |
+| `use_profiles` | `Hash` | `{}` | Enable content type profiles: `:html`, `:svg`, `:svg_filters`, `:math_ml`, `:html_email`. Setting it resets profile-dependent options (`allowed_tags`, `allowed_attributes`, `forbidden_tags`, ...). In a hash it is always applied first; in a block, set it before customising other options. |
 | `namespace` | `String` | `'http://www.w3.org/1999/xhtml'` | Namespace for XHTML handling. |
 | `parser_media_type` | `String` | `'text/html'` | Parser media type; set to `application/xhtml+xml` for XHTML. |
 
@@ -470,11 +483,11 @@ Adds a hook function.
 
 **Parameters:**
 - `entry_point` (Symbol) - Hook name (`:before_sanitize_elements`, `:upon_sanitize_attribute`, etc.)
-- `block` (Proc) - Hook function receiving `(node, data, config)`
+- `block` (Proc) - Hook function receiving `(node, data, config)`; for `:upon_sanitize_attribute` the first argument is the `Nokogiri::XML::Attr`
 
 **Example:**
 ```ruby
-dandruff.add_hook(:upon_sanitize_attribute) do |node, data, config|
+dandruff.add_hook(:upon_sanitize_attribute) do |attr, data, config|
   data[:keep_attr] = true if data[:attr_name] == 'data-safe'
 end
 ```
@@ -621,7 +634,7 @@ dandruff.scrub('<a onclick="alert(1)">Click</a>')
 ```ruby
 # mXSS prevented through multi-pass sanitization
 dandruff = Dandruff.new do |config|
-  config.scrub_until_stable = true  # default
+  config.sanitize_until_stable = true  # default
   config.mutation_max_passes = 2
 end
 ```
@@ -667,7 +680,11 @@ dandruff.scrub('<link href="vbscript:msgbox(1)">')
 **Protection:**
 - Parses and validates inline `style` attributes
 - Removes dangerous CSS properties and values
-- Scans `<style>` tag content for unsafe patterns
+- Sanitizes `<style>` content rule by rule instead of dropping whole blocks: removes `@import`,
+  `expression()`, `behavior`/`-moz-binding`, `javascript:`/`vbscript:` and any `url()`, `src()` or
+  `image-set()` URL that fails the URI rules (`data:` only for images and only with
+  `allow_data_uri`; `allowed_uri_regexp` applies). CSS escapes and comments are decoded before checking.
+- Remote CSS URLs are kept by default (like remote `<img>`); set `allow_remote_style_urls = false` to remove them
 
 ```ruby
 dandruff.scrub('<div style="expression(alert(1))"></div>')
@@ -693,7 +710,7 @@ config.forbidden_tags = ['script', 'iframe', ...] # incomplete!
 
 ```ruby
 # ✅ Good - only allow HTTPS  
-config.allowed_uri_regexp = /^https:/
+config.allowed_uri_regexp = /\Ahttps:/
 
 # ⚠️ Caution - allowing unknown protocols is risky
 config.allow_unknown_protocols = true  # avoid unless necessary
@@ -776,7 +793,7 @@ dandruff = Dandruff.new do |config|
   ]
   config.allowed_attributes = ['href', 'src', 'alt', 'title', 'class', 'id']
   config.allow_data_uri = true  # for embedded images
-  config.allowed_uri_regexp = /^(?:https?:|\/)/  # only https and relative
+  config.allowed_uri_regexp = /\A(?:https?:|\/)/  # only https and relative
 end
 ```
 
@@ -859,16 +876,15 @@ end
 cleaned_docs = documents.map { |doc| dandruff.scrub(doc) }
 ```
 
-#### 4. Adjust Multi-Pass Limit
+#### 4. Multi-Pass Limit
 
-For trusted content, you can reduce passes:
+A single pass already removes disallowed elements and attributes. The second pass
+re-parses the output to catch parser mutations (mXSS), so keep the default of 2 for
+untrusted input. Only lower it for content that is already trusted:
 
 ```ruby
-# Faster but less secure - use only for pre-validated content
-config.scrub_until_stable = false
-
-# Or reduce max passes
-config.mutation_max_passes = 1  # default is 2
+# Single pass: skips the mXSS re-parse check, use only for trusted content
+config.sanitize_until_stable = false   # equivalent to mutation_max_passes = 1
 ```
 
 #### 5. Return DOM for Further Processing
@@ -1073,13 +1089,17 @@ config.allowed_attributes_per_tag = {
 
 ### Style tags are removed
 
-**Enable style tags:**
+`<style>` is kept when `allow_style_tags` is true (the default), it is not in `forbidden_tags`, and,
+if you set `allowed_tags` or use a profile, the allowlist contains `style`. The `html` profile's allowlist
+does not include `style`; `html_email` does. In fragments, a `<style>` at the top level or inside
+SVG/MathML is removed.
 
 ```ruby
-config.allow_style_tags = true
+config.allowed_tags = %w[p div style]   # explicit allowlists must list style
+config.allow_style_tags = true          # default
 
 # For whole documents (like emails)
-config.whole_document = true
+config.use_profiles = { html_email: true }
 ```
 
 ### URI validation is too strict
@@ -1088,7 +1108,7 @@ config.whole_document = true
 
 ```ruby
 # Allow more protocols
-config.allowed_uri_regexp = /^(?:https?|ftp|mailto):/
+config.allowed_uri_regexp = /\A(?:https?|ftp|mailto):/
 
 # Or allow unknown protocols (⚠️ less secure)
 config.allow_unknown_protocols = true
@@ -1101,13 +1121,10 @@ config.allow_unknown_protocols = true
 ```ruby
 # Use specific allowlists
 config.allowed_tags = ['p', 'strong', 'em']  # faster than nil/defaults
-
-# Reduce multi-pass iterations for trusted content
-config.mutation_max_passes = 1  # default is 2
-
-# Disable multi-pass for pre-validated content  
-config.scrub_until_stable = false  # use with caution
 ```
+
+Avoid lowering `mutation_max_passes` / disabling `sanitize_until_stable` for untrusted
+input: the second pass is the mXSS check, not a performance knob.
 
 ## 🤝 Contributing
 

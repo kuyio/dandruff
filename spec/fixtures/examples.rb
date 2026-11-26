@@ -321,13 +321,19 @@ examples = [
     "expected" => "<div id=\"26\">+ADw-html+AD4APA-body+AD4APA-div+AD4-top secret+ADw-/div+AD4APA-/body+AD4APA-/html+AD4-.toXMLString().match(/.*/m),alert(RegExp.input);//[\"'`--&gt;]]&gt;]</div>"
   }, {
     "payload" => "<div id=\"27\"><style>p[foo=bar{}*{-o-link:'javascript:alert(27)'}{}*{-o-link-source:current}*{background:red}]{background:green};</style>//[\"'`-->]]>]</div><div id=\"28\">1<animate/xmlns=urn:schemas-microsoft-com:time style=behavior:url(#default#time2)  attributename=innerhtml values=<img/src=\".\"onerror=alert(28)>>//[\"'`-->]]>]</div>",
-    "expected" => "<div id=\"27\"><style>p[foo=bar{}*{-o-link:'javascript:alert(27)'}{}*{-o-link-source:current}*{background:red}]{background:green};</style>//[\"'`--&gt;]]&gt;]</div><div id=\"28\">1&gt;//[\"'`--&gt;]]&gt;]</div>"
+    # DOMPurify passes <style> text through unchanged and expects:
+    #   "<div id=\"27\"><style>p[foo=bar{}*{-o-link:'javascript:alert(27)'}{}*{-o-link-source:current}*{background:red}]{background:green};</style>//[\"'`--&gt;]]&gt;]</div><div id=\"28\">1&gt;//[\"'`--&gt;]]&gt;]</div>"
+    # Dandruff sanitizes style content (Dandruff::Css), so the -o-link declaration with a javascript: URL is removed.
+    "expected" => "<div id=\"27\"><style>p[foo=bar{}*{}{}*{-o-link-source:current}*{background:red}]{background:green};</style>//[\"'`--&gt;]]&gt;]</div><div id=\"28\">1&gt;//[\"'`--&gt;]]&gt;]</div>"
   }, {
     "payload" => "<div id=\"29\"><link rel=stylesheet href=data:,*%7bx:expression(alert(29))%7d//[\"'`-->]]>]</div>",
     "expected" => "<div id=\"29\">]]&gt;]</div>"
   }, {
     "payload" => "<div id=\"30\"><style>@import \"data:,*%7bx:expression(alert(30))%7D\";</style>//[\"'`-->]]>]</div>",
-    "expected" => "<div id=\"30\"><style>@import \"data:,*%7bx:expression(alert(30))%7D\";</style>//[\"'`--&gt;]]&gt;]</div>"
+    # DOMPurify passes <style> text through unchanged and expects:
+    #   "<div id=\"30\"><style>@import \"data:,*%7bx:expression(alert(30))%7D\";</style>//[\"'`--&gt;]]&gt;]</div>"
+    # Dandruff sanitizes style content (Dandruff::Css), so the @import rule is removed.
+    "expected" => "<div id=\"30\"><style>;</style>//[\"'`--&gt;]]&gt;]</div>"
   }, {
     "payload" => "<div id=\"31\"><frameset onload=alert(31)>//[\"'`-->]]>]</div>",
     "expected" => ""
@@ -385,7 +391,10 @@ examples = [
     "expected" => "Hello\n//[\"'`--&gt;]]&gt;]"
   }, {
     "payload" => "<div id=\"44\"><style>*[{}@import'test.css?]{color: green;}</style>X//[\"'`-->]]>]</div>",
-    "expected" => "<div id=\"44\"><style>*[{}@import'test.css?]{color: green;}</style>X//[\"'`--&gt;]]&gt;]</div>"
+    # DOMPurify passes <style> text through unchanged and expects:
+    #   "<div id=\"44\"><style>*[{}@import'test.css?]{color: green;}</style>X//[\"'`--&gt;]]&gt;]</div>"
+    # Dandruff sanitizes style content (Dandruff::Css), so the @import rule (an unterminated string running to the end) is removed.
+    "expected" => "<div id=\"44\"><style>*[{}</style>X//[\"'`--&gt;]]&gt;]</div>"
   }, {
     "payload" => "<div id=\"45\"><div style=\"font-family:'foo[a];color:red;';\">XXX</div>//[\"'`-->]]>]</div>",
     "expected" => "<div id=\"45\"><div style=\"font-family:'foo[a];color:red;';\">XXX</div>//[\"'`--&gt;]]&gt;]</div>"
@@ -692,7 +701,13 @@ examples = [
     "expected" => [
       "<div id=\"128\"><svg><style></style></svg><img src=\"x\">//[\"'`--&gt;]]&gt;]</div>",
       "<div id=\"128\"><svg><style><img src=\"x\">//[\"'`--&gt;]]&gt;]</img></style></svg></div>",
-      "<div id=\"128\"><svg><style><img src=\"x\"></style></svg></div>"
+      "<div id=\"128\"><svg><style><img src=\"x\"></style></svg></div>",
+      # Dandruff-specific (stricter than DOMPurify): DOMPurify keeps the now-empty SVG <style>
+      # (first expectation above). Dandruff removes <style>, <title> and <mglyph> inside SVG/MathML
+      # (Sanitizer#dangerous_in_math_svg?) as an mXSS precaution. Before <style> went through
+      # sanitize_element that rule was skipped for <style>. The <img> breakout is handled the
+      # same way in both outputs, and onerror is removed in both.
+      "<div id=\"128\"><svg></svg><img src=\"x\">//[\"'`--&gt;]]&gt;]</div>"
     ]
   }, {
     "title" => "Inline SVG (data-uri)",

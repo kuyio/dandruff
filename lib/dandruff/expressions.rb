@@ -71,21 +71,34 @@ module Dandruff
 
     # Validates allowed URI protocols and relative URLs
     #
-    # This is the default URI validation pattern matching DOMPurify's behavior.
-    # Allows: http, https, mailto, ftp, tel protocols and relative URLs.
-    # Blocks: javascript, data, vbscript, and other dangerous protocols.
+    # This is the default URI validation pattern, matching DOMPurify's IS_ALLOWED_URI.
+    # Allows the http, https, ftp, ftps, mailto, tel, callto, sms, cid, xmpp and matrix
+    # schemes plus relative URLs. A value without one of those schemes is only accepted
+    # when it cannot be parsed as a scheme: it starts with a non-letter, or its leading
+    # run of scheme characters (letters, `+`, `.`, `-`) is followed by anything but `:`.
     #
-    # **Allowed protocols:** http, https, mailto, ftp, tel, relative URLs (/, ./, ../)
-    # **Blocked protocols:** javascript, vbscript, data (unless explicitly enabled)
+    # **Allowed:** the schemes above, relative URLs (`/`, `./`, `../`, `#`, `?`, `page2.html`,
+    # `images/logo.png`), `cid:` references to inline email parts
+    # **Blocked:** javascript, vbscript, data (handled separately) and other unknown schemes
+    #
+    # The pattern is anchored with `\A` (not `^`) so that only the start of the whole value counts.
     #
     # @example Valid URIs
     #   'https://example.com' =~ Expressions::IS_ALLOWED_URI    # matches
     #   'mailto:user@example.com' =~ Expressions::IS_ALLOWED_URI # matches
+    #   'cid:image001.png@01D9C2A0' =~ Expressions::IS_ALLOWED_URI # matches
     #   '/path/to/page' =~ Expressions::IS_ALLOWED_URI         # matches
+    #   'images/logo.png' =~ Expressions::IS_ALLOWED_URI       # matches
     #   'javascript:alert(1)' =~ Expressions::IS_ALLOWED_URI   # does not match
     #
     # @see Config#allowed_uri_regexp Custom URI pattern override
-    IS_ALLOWED_URI = /^(?:(?:https?|mailto|ftp|tel):|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$))/i
+    IS_ALLOWED_URI = /
+      \A(?:
+        (?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|matrix): # allowed schemes
+        | [^a-z]                                               # starts with a non-letter
+        | [a-z+.-]+(?:[^a-z+.\-:]|\z)                          # scheme characters not followed by ':'
+      )
+    /ix
 
     # Detects dangerous JavaScript and data:text/html URIs
     #

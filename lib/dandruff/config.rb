@@ -90,7 +90,7 @@ module Dandruff
     #   Custom regexp for validating URI attributes
     #   @return [Regexp, nil] custom URI validation pattern or nil for default
     #   @example Only allow HTTPS
-    #     config.allowed_uri_regexp = /^https:/
+    #     config.allowed_uri_regexp = /\Ahttps:/
 
     # @!attribute [rw] forbidden_attributes
     #   Attributes that are always removed (takes precedence over allowed)
@@ -107,7 +107,15 @@ module Dandruff
     # @!attribute [rw] allow_style_tags
     #   Allow <style> tags with content sanitization
     #   @return [Boolean] true to allow style tags (default: true)
-    #   @note Style tag content is scanned for unsafe patterns
+    #   @note <style> must also pass forbidden_tags/allowed_tags. Its content is sanitized:
+    #     @import rules, expression(), behavior/-moz-binding, script URLs and disallowed
+    #     url() values are removed (see {Dandruff::Css})
+
+    # @!attribute [rw] allow_remote_style_urls
+    #   Allow remote (http, https, ftp, protocol-relative) URLs in CSS: url(), src() and
+    #   image-set() in <style> content and style attributes. Set to false to strip them,
+    #   e.g. to stop remote tracking or data exfiltration through CSS in HTML email.
+    #   @return [Boolean] (default: true)
 
     # @!attribute [rw] allow_document_elements
     #   Allow html/head/body document structure elements
@@ -187,7 +195,7 @@ module Dandruff
       :mathml_text_integration_points, :namespace, :parser_media_type,
       :return_dom_fragment, :return_dom,
       :safe_for_templates, :safe_for_xml, :sanitize_dom, :sanitize_until_stable, :mutation_max_passes,
-      :sanitize_named_props, :trusted_types_policy, :allow_style_tags, :minimal_profile,
+      :sanitize_named_props, :trusted_types_policy, :allow_style_tags, :allow_remote_style_urls, :minimal_profile,
       :whole_document, :allow_document_elements
 
     # Initializes a new configuration instance
@@ -221,6 +229,7 @@ module Dandruff
       @in_place = false
       @minimal_profile = false
       @allow_style_tags = true
+      @allow_remote_style_urls = true
 
       # Profiles / namespaces
       @use_profiles = {}
@@ -397,8 +406,10 @@ module Dandruff
     # @example Email profile
     #   config.use_profiles = { html_email: true }
     #
-    # @note Setting profiles resets allowed_tags and allowed_attributes to nil,
-    #   allowing the profile configuration to take effect
+    # @note Setting profiles resets allowed_tags, allowed_attributes, forbidden_tags and the other
+    #   profile-dependent options. In a hash (`Dandruff.new(use_profiles: ..., forbidden_tags: ...)`)
+    #   profiles are always applied first; in a configuration block, set `use_profiles` before
+    #   the options you want to customise.
     def use_profiles=(profiles)
       @use_profiles = profiles || {}
       reset_profile_dependent_settings
@@ -409,10 +420,14 @@ module Dandruff
 
     # Applies configuration options from a hash
     #
+    # `use_profiles` is applied first, whatever its position in the hash: setting a profile
+    # resets profile-dependent options, which would otherwise discard options given before it.
+    #
     # @param cfg [Hash] configuration hash
     def apply_config(cfg)
-      cfg.each do |key, value|
-        normalized = key.to_s.downcase
+      entries = cfg.map { |key, value| [key.to_s.downcase, value] }
+      profiles, options = entries.partition { |key, _| key == 'use_profiles' }
+      (profiles + options).each do |normalized, value|
         setter = CONFIG_MAPPING[normalized] || :"#{normalized}="
         send(setter, value) if respond_to?(setter)
       end
